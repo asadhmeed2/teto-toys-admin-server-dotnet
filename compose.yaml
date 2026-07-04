@@ -1,0 +1,24 @@
+services:
+  admin-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - AdmineTetoToys.Api/.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      CorsOrigin: http://localhost:4201
+      Redis__Host: shared_redis
+      Redis__Port: ${Redis__Port:-6379}
+      Redis__Password: ${Redis__Password}
+      MySQL__ConnectionString: ${MYSQL__ConnectionString}
+      MySQL__Server: shared_mysql
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    networks:
+      - infrastructure_network
+
+networks:
+  infrastructure_network:
+    external: true

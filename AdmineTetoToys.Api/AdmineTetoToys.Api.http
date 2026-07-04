@@ -1,0 +1,6 @@
+@AdmineTetoToys.Api_HostAddress = http://localhost:5118
+
+GET {{AdmineTetoToys.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
