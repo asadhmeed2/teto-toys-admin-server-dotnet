@@ -7,6 +7,7 @@ services:
       - AdmineTetoToys.Api/.env
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8081"
       CorsOrigin: http://localhost:4201
       Redis__Host: shared_redis
       Redis__Port: ${Redis__Port:-6379}
@@ -14,7 +15,7 @@ services:
       MySQL__ConnectionString: ${MYSQL__ConnectionString}
       MySQL__Server: shared_mysql
     ports:
-      - "8081:8080"
+      - "8081:8081"
     restart: unless-stopped
     networks:
       - infrastructure_network
