@@ -67,4 +67,23 @@ public class RedisCacheService : IRedisCacheService
         var db = _multiplexer.GetDatabase();
         await db.KeyDeleteAsync($"admin_session:{email}");
     }
+
+    public async Task SetPermissionsAsync(string email, string permissionsJson, TimeSpan ttl)
+    {
+        var db = _multiplexer.GetDatabase();
+        await db.StringSetAsync($"permissions:{email}", permissionsJson, ttl);
+    }
+
+    public async Task<string?> GetPermissionsAsync(string email)
+    {
+        var db = _multiplexer.GetDatabase();
+        var value = await db.StringGetAsync($"permissions:{email}");
+        return value.HasValue ? value.ToString() : null;
+    }
+
+    public async Task InvalidatePermissionsAsync(string email)
+    {
+        var db = _multiplexer.GetDatabase();
+        await db.KeyDeleteAsync($"permissions:{email}");
+    }
 }

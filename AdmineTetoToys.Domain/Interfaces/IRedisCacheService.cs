@@ -13,4 +13,8 @@ public interface IRedisCacheService
     Task SetAdminSessionAsync(string email, string role, TimeSpan ttl);
     Task<AdmineTetoToys.Domain.Entities.AdminSession?> GetAdminSessionAsync(string email);
     Task InvalidateAdminSessionAsync(string email);
+
+    Task SetPermissionsAsync(string email, string permissionsJson, TimeSpan ttl);
+    Task<string?> GetPermissionsAsync(string email);
+    Task InvalidatePermissionsAsync(string email);
 }
