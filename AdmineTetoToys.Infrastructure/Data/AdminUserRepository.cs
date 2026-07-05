@@ -27,7 +27,7 @@ public class AdminUserRepository : IAdminUserRepository
 
         return new AdminUser
         {
-            AdminId = reader.GetString(reader.GetOrdinal("admin_id")),
+            AdminId = reader.GetGuid(reader.GetOrdinal("admin_id")).ToString(),
             Email = reader.GetString(reader.GetOrdinal("email")),
             PasswordHash = reader.GetString(reader.GetOrdinal("password_hash")),
             FirstName = reader.GetString(reader.GetOrdinal("first_name")),
