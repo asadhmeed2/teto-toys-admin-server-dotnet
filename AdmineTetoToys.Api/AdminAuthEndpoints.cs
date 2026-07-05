@@ -38,6 +38,9 @@ public static class AdminAuthEndpoints
             string refreshToken = tokenService.GenerateRefreshToken(admin.Email, admin.Role, secret, 7 * 24 * 60);
             await redisService.SetRefreshTokenAsync(refreshToken, TimeSpan.FromDays(7));
 
+            // ponytail: persist admin session in Redis for auth checks on protected endpoints
+            await redisService.SetAdminSessionAsync(admin.Email, admin.Role, TimeSpan.FromMinutes(15));
+
             context.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
             {
                 HttpOnly = true,
@@ -59,11 +62,18 @@ public static class AdminAuthEndpoints
         // POST /api/auth/logout
         group.MapPost("/logout", async (HttpContext context) =>
         {
+            var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
+            var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
+
             var refreshToken = context.Request.Cookies["refresh_token"];
             if (!string.IsNullOrEmpty(refreshToken))
             {
-                var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
                 await redisService.InvalidateRefreshTokenAsync(refreshToken);
+
+                // ponytail: clear admin session from Redis
+                var email = tokenService.GetEmailFromToken(refreshToken);
+                if (!string.IsNullOrEmpty(email))
+                    await redisService.InvalidateAdminSessionAsync(email);
             }
             context.Response.Cookies.Delete("refresh_token");
             return Results.Ok(new { message = "Logged out successfully." });

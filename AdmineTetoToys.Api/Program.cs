@@ -30,5 +30,6 @@ app.UseCors("AllowAdminUI");
 app.UseHttpsRedirection();
 
 app.MapAdminAuthEndpoints();
+app.MapAdminUserEndpoints();
 
 app.Run();

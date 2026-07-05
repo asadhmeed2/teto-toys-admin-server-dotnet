@@ -48,4 +48,23 @@ public class RedisCacheService : IRedisCacheService
         var db = _multiplexer.GetDatabase();
         await db.KeyDeleteAsync(key);
     }
+    public async Task SetAdminSessionAsync(string email, string role, TimeSpan ttl)
+    {
+        var db = _multiplexer.GetDatabase();
+        // ponytail: store role directly, keyed by email
+        await db.StringSetAsync($"admin_session:{email}", role, ttl);
+    }
+
+    public async Task<AdmineTetoToys.Domain.Entities.AdminSession?> GetAdminSessionAsync(string email)
+    {
+        var db = _multiplexer.GetDatabase();
+        var role = await db.StringGetAsync($"admin_session:{email}");
+        return role.HasValue ? new AdmineTetoToys.Domain.Entities.AdminSession(email, role.ToString()) : null;
+    }
+
+    public async Task InvalidateAdminSessionAsync(string email)
+    {
+        var db = _multiplexer.GetDatabase();
+        await db.KeyDeleteAsync($"admin_session:{email}");
+    }
 }

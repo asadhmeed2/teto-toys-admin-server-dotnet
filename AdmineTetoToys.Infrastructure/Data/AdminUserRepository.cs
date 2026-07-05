@@ -48,4 +48,21 @@ public class AdminUserRepository : IAdminUserRepository
         cmd.Parameters.AddWithValue("@adminId", adminId);
         await cmd.ExecuteNonQueryAsync();
     }
+    public async Task CreateAsync(AdminUser user)
+    {
+        const string sql = @"INSERT INTO admin_users (admin_id, email, password_hash, first_name, last_name, role, is_active)
+                             VALUES (@adminId, @email, @passwordHash, @firstName, @lastName, @role, @isActive)";
+
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@adminId", user.AdminId);
+        cmd.Parameters.AddWithValue("@email", user.Email);
+        cmd.Parameters.AddWithValue("@passwordHash", user.PasswordHash);
+        cmd.Parameters.AddWithValue("@firstName", user.FirstName);
+        cmd.Parameters.AddWithValue("@lastName", user.LastName);
+        cmd.Parameters.AddWithValue("@role", user.Role);
+        cmd.Parameters.AddWithValue("@isActive", user.IsActive);
+        await cmd.ExecuteNonQueryAsync();
+    }
 }
