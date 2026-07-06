@@ -11,35 +11,35 @@ public class JwtTokenService : ITokenService
     public const string Issuer = "tatotoys-api";
     public const string Audience = "tatotoys-frontend";
 
-    public string GenerateAccessToken(string email, string secretKey, int expireMinutes)
+    public string GenerateAccessToken(string adminId, string secretKey, int expireMinutes)
     {
-        return GenerateTokenInternal(email, "User", secretKey, expireMinutes, "access");
+        return GenerateTokenInternal(adminId, "User", secretKey, expireMinutes, "access");
     }
 
-    public string GenerateRefreshToken(string email, string secretKey, int expireMinutes)
+    public string GenerateRefreshToken(string adminId, string secretKey, int expireMinutes)
     {
-        return GenerateTokenInternal(email, "User", secretKey, expireMinutes, "refresh");
+        return GenerateTokenInternal(adminId, "User", secretKey, expireMinutes, "refresh");
     }
 
-    public string GenerateAccessToken(string email, string role, string secretKey, int expireMinutes)
+    public string GenerateAccessToken(string adminId, string role, string secretKey, int expireMinutes)
     {
-        return GenerateTokenInternal(email, role, secretKey, expireMinutes, "access");
+        return GenerateTokenInternal(adminId, role, secretKey, expireMinutes, "access");
     }
 
-    public string GenerateRefreshToken(string email, string role, string secretKey, int expireMinutes)
+    public string GenerateRefreshToken(string adminId, string role, string secretKey, int expireMinutes)
     {
-        return GenerateTokenInternal(email, role, secretKey, expireMinutes, "refresh");
+        return GenerateTokenInternal(adminId, role, secretKey, expireMinutes, "refresh");
     }
 
-    private string GenerateTokenInternal(string email, string role, string secretKey, int expireMinutes, string tokenType)
+    private string GenerateTokenInternal(string adminId, string role, string secretKey, int expireMinutes, string tokenType)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(secretKey);
 
         var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, email),
-            new Claim(JwtRegisteredClaimNames.Email, email),
+            new Claim(JwtRegisteredClaimNames.Sub, adminId),
+            new Claim(ClaimTypes.NameIdentifier, adminId),
             new Claim(ClaimTypes.Role, role),
         };
 
@@ -64,13 +64,13 @@ public class JwtTokenService : ITokenService
         return tokenHandler.WriteToken(token);
     }
 
-    public string? GetEmailFromToken(string token)
+    public string? GetAdminIdFromToken(string token)
     {
         try
         {
             var handler = new JwtSecurityTokenHandler();
             var jwt = handler.ReadJwtToken(token);
-            return jwt.Claims.First(c => c.Type == JwtRegisteredClaimNames.Email).Value;
+            return jwt.Claims.First(c => c.Type == JwtRegisteredClaimNames.Sub).Value;
         }
         catch
         {
@@ -98,10 +98,10 @@ public class JwtTokenService : ITokenService
             }, out var validatedToken);
 
             var jwt = (JwtSecurityToken)validatedToken;
-            var email = jwt.Claims.First(c => c.Type == JwtRegisteredClaimNames.Email).Value;
+            var adminId = jwt.Claims.First(c => c.Type == JwtRegisteredClaimNames.Sub).Value;
             var role = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "User";
 
-            return new { email, role };
+            return new { adminId, role };
         }
         catch
         {

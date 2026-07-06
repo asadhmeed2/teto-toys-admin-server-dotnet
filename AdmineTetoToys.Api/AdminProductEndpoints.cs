@@ -30,12 +30,12 @@ public static class AdminProductEndpoints
             if (userInfo == null)
                 return (false, null, Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401));
 
-            var emailProp = userInfo.GetType().GetProperty("email");
-            var callerEmail = emailProp?.GetValue(userInfo)?.ToString();
-            if (string.IsNullOrEmpty(callerEmail))
+            var adminIdProp = userInfo.GetType().GetProperty("adminId");
+            var callerAdminId = adminIdProp?.GetValue(userInfo)?.ToString();
+            if (string.IsNullOrEmpty(callerAdminId))
                 return (false, null, Results.Json(new { error = "unauthorized", error_description = "Could not identify caller." }, statusCode: 401));
 
-            var session = await redisService.GetAdminSessionAsync(callerEmail);
+            var session = await redisService.GetAdminSessionAsync(callerAdminId);
             if (session == null)
                 return (false, null, Results.Json(new { error = "unauthorized", error_description = "Session expired. Please log in again." }, statusCode: 401));
 

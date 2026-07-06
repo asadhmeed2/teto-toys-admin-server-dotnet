@@ -10,11 +10,11 @@ public interface IRedisCacheService
     Task<string?> GetResetTokenUserIdAsync(string key);
     Task InvalidateResetTokenAsync(string key);
 
-    Task SetAdminSessionAsync(string email, string role, TimeSpan ttl);
-    Task<AdmineTetoToys.Domain.Entities.AdminSession?> GetAdminSessionAsync(string email);
-    Task InvalidateAdminSessionAsync(string email);
+    Task SetAdminSessionAsync(string adminId, string role, TimeSpan ttl);
+    Task<AdmineTetoToys.Domain.Entities.AdminSession?> GetAdminSessionAsync(string adminId);
+    Task InvalidateAdminSessionAsync(string adminId);
 
-    Task SetPermissionsAsync(string email, string permissionsJson, TimeSpan ttl);
-    Task<string?> GetPermissionsAsync(string email);
-    Task InvalidatePermissionsAsync(string email);
+    Task SetPermissionsAsync(string adminId, string permissionsJson, TimeSpan ttl);
+    Task<string?> GetPermissionsAsync(string adminId);
+    Task InvalidatePermissionsAsync(string adminId);
 }

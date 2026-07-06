@@ -62,28 +62,28 @@ public class RedisCacheService : IRedisCacheService
         return role.HasValue ? new AdmineTetoToys.Domain.Entities.AdminSession(email, role.ToString()) : null;
     }
 
-    public async Task InvalidateAdminSessionAsync(string email)
+    public async Task InvalidateAdminSessionAsync(string Id)
     {
         var db = _multiplexer.GetDatabase();
-        await db.KeyDeleteAsync($"admin_session:{email}");
+        await db.KeyDeleteAsync($"admin_session:{Id}");
     }
 
-    public async Task SetPermissionsAsync(string email, string permissionsJson, TimeSpan ttl)
+    public async Task SetPermissionsAsync(string Id, string permissionsJson, TimeSpan ttl)
     {
         var db = _multiplexer.GetDatabase();
-        await db.StringSetAsync($"permissions:{email}", permissionsJson, ttl);
+        await db.StringSetAsync($"permissions:{Id}", permissionsJson, ttl);
     }
 
-    public async Task<string?> GetPermissionsAsync(string email)
+    public async Task<string?> GetPermissionsAsync(string Id)
     {
         var db = _multiplexer.GetDatabase();
-        var value = await db.StringGetAsync($"permissions:{email}");
+        var value = await db.StringGetAsync($"permissions:{Id}");
         return value.HasValue ? value.ToString() : null;
     }
 
-    public async Task InvalidatePermissionsAsync(string email)
+    public async Task InvalidatePermissionsAsync(string Id)
     {
         var db = _multiplexer.GetDatabase();
-        await db.KeyDeleteAsync($"permissions:{email}");
+        await db.KeyDeleteAsync($"permissions:{Id}");
     }
 }

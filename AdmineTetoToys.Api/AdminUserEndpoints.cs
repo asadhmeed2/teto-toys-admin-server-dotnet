@@ -32,14 +32,14 @@ public static class AdminUserEndpoints
             if (userInfo == null)
                 return Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401);
 
-            // ponytail: extract email from validated token via reflection on anonymous object
-            var emailProp = userInfo.GetType().GetProperty("email");
-            var callerEmail = emailProp?.GetValue(userInfo)?.ToString();
-            if (string.IsNullOrEmpty(callerEmail))
+            // ponytail: extract adminId from validated token via reflection on anonymous object
+            var adminIdProp = userInfo.GetType().GetProperty("adminId");
+            var callerAdminId = adminIdProp?.GetValue(userInfo)?.ToString();
+            if (string.IsNullOrEmpty(callerAdminId))
                 return Results.Json(new { error = "unauthorized", error_description = "Could not identify caller." }, statusCode: 401);
 
             // 2. Verify caller's session exists in Redis and role is Admin
-            var session = await redisService.GetAdminSessionAsync(callerEmail);
+            var session = await redisService.GetAdminSessionAsync(callerAdminId);
             if (session == null)
                 return Results.Json(new { error = "unauthorized", error_description = "Session expired. Please log in again." }, statusCode: 401);
 

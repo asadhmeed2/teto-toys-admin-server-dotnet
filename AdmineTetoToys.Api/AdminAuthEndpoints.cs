@@ -35,17 +35,17 @@ public static class AdminAuthEndpoints
             await adminRepo.UpdateLastLoginAsync(admin.AdminId);
 
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
-            string accessToken = tokenService.GenerateAccessToken(admin.Email, admin.Role, secret, 15);
-            string refreshToken = tokenService.GenerateRefreshToken(admin.Email, admin.Role, secret, 7 * 24 * 60);
+            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 15);
+            string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, secret, 7 * 24 * 60);
             await redisService.SetRefreshTokenAsync(refreshToken, TimeSpan.FromDays(7));
 
             // ponytail: persist admin session in Redis for auth checks on protected endpoints
-            await redisService.SetAdminSessionAsync(admin.Email, admin.Role, TimeSpan.FromMinutes(15));
+            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, TimeSpan.FromMinutes(15));
 
             // ponytail: store user permissions in Redis for 7 days (lifetime of session)
             var permissions = new { userCreation = admin.Role == "Admin" };
             var permissionsJson = JsonSerializer.Serialize(permissions);
-            await redisService.SetPermissionsAsync(admin.Email, permissionsJson, TimeSpan.FromDays(7));
+            await redisService.SetPermissionsAsync(admin.AdminId, permissionsJson, TimeSpan.FromDays(7));
 
             context.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
             {
@@ -77,11 +77,11 @@ public static class AdminAuthEndpoints
                 await redisService.InvalidateRefreshTokenAsync(refreshToken);
 
                 // ponytail: clear admin session from Redis
-                var email = tokenService.GetEmailFromToken(refreshToken);
-                if (!string.IsNullOrEmpty(email))
+                var adminId = tokenService.GetAdminIdFromToken(refreshToken);
+                if (!string.IsNullOrEmpty(adminId))
                 {
-                    await redisService.InvalidateAdminSessionAsync(email);
-                    await redisService.InvalidatePermissionsAsync(email);
+                    await redisService.InvalidateAdminSessionAsync(adminId);
+                    await redisService.InvalidatePermissionsAsync(adminId);
                 }
             }
             context.Response.Cookies.Delete("refresh_token");
@@ -115,17 +115,15 @@ public static class AdminAuthEndpoints
 
             // 1. Validate Access Token (JWT)
             var authHeader = context.Request.Headers.Authorization.ToString();
-            if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                return Results.Json(new { error = "unauthorized", error_description = "Missing or invalid Authorization header." }, statusCode: 401);
-
+            
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
             var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
             if (userInfo == null)
                 return Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401);
 
-            var emailProp = userInfo.GetType().GetProperty("email");
-            var callerEmail = emailProp?.GetValue(userInfo)?.ToString();
-            if (string.IsNullOrEmpty(callerEmail))
+            var adminIdProp = userInfo.GetType().GetProperty("adminId");
+            var callerAdminId = adminIdProp?.GetValue(userInfo)?.ToString();
+            if (string.IsNullOrEmpty(callerAdminId))
                 return Results.Json(new { error = "unauthorized", error_description = "Could not identify caller." }, statusCode: 401);
 
             // 2. Validate Refresh Token cookie is in Redis
@@ -134,7 +132,7 @@ public static class AdminAuthEndpoints
                 return Results.Json(new { error = "unauthorized", error_description = "Missing or invalid session refresh token." }, statusCode: 401);
 
             // 3. Retrieve permissions from Redis
-            var permissionsJson = await redisService.GetPermissionsAsync(callerEmail);
+            var permissionsJson = await redisService.GetPermissionsAsync(callerAdminId);
             if (string.IsNullOrEmpty(permissionsJson))
             {
                 // ponytail: fallback just in case key was evicted but tokens are fully valid
@@ -142,7 +140,7 @@ public static class AdminAuthEndpoints
                 var role = roleProp?.GetValue(userInfo)?.ToString() ?? "Partner";
                 var permissions = new { userCreation = role == "Admin" };
                 permissionsJson = JsonSerializer.Serialize(permissions);
-                await redisService.SetPermissionsAsync(callerEmail, permissionsJson, TimeSpan.FromDays(7));
+                await redisService.SetPermissionsAsync(callerAdminId, permissionsJson, TimeSpan.FromDays(7));
             }
 
             return Results.Content(permissionsJson, "application/json");
