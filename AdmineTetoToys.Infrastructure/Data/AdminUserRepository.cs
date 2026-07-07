@@ -29,6 +29,7 @@ public class AdminUserRepository : IAdminUserRepository
         {
             AdminId = reader.GetGuid(reader.GetOrdinal("admin_id")).ToString(),
             Email = reader.GetString(reader.GetOrdinal("email")),
+            PasswordHash = reader.GetString(reader.GetOrdinal("password_hash")),
             FirstName = reader.GetString(reader.GetOrdinal("first_name")),
             LastName = reader.GetString(reader.GetOrdinal("last_name")),
             Role = reader.GetString(reader.GetOrdinal("role")),
@@ -52,6 +53,7 @@ public class AdminUserRepository : IAdminUserRepository
         {
             AdminId = reader.GetGuid(reader.GetOrdinal("admin_id")).ToString(),
             Email = reader.GetString(reader.GetOrdinal("email")),
+            PasswordHash = reader.GetString(reader.GetOrdinal("password_hash")),
             FirstName = reader.GetString(reader.GetOrdinal("first_name")),
             LastName = reader.GetString(reader.GetOrdinal("last_name")),
             Role = reader.GetString(reader.GetOrdinal("role")),

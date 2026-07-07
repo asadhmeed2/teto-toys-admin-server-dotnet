@@ -157,5 +157,41 @@ public static class AdminProductEndpoints
                 part_ids = request.PartIds ?? new List<string>()
             }, statusCode: 201);
         });
+
+        // GET /api/admin/products — Get products paginated
+        productsGroup.MapGet("/", async (HttpContext context, int? page, int? pageSize, string? search) =>
+        {
+            var authCheck = await ValidateAdminSessionAsync(context);
+            if (!authCheck.Authorized) return authCheck.ErrorResult!;
+
+            int pageVal = page ?? 1;
+            int pageSizeVal = pageSize ?? 10;
+            if (pageVal < 1) pageVal = 1;
+            if (pageSizeVal < 1 || pageSizeVal > 100) pageSizeVal = 10;
+
+            var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
+            var (items, totalCount) = await productRepo.GetProductsPaginatedAsync(pageVal, pageSizeVal, search);
+
+            var totalPages = (int)Math.Ceiling((double)totalCount / pageSizeVal);
+
+            return Results.Ok(new
+            {
+                items = items.Select(p => new
+                {
+                    product_id = p.ProductId,
+                    title = p.Title,
+                    subtitle = p.Subtitle,
+                    description = p.Description,
+                    category = p.Category,
+                    subcategory = p.Subcategory,
+                    price = p.Price,
+                    image_urls = p.ImageUrls
+                }),
+                total_count = totalCount,
+                page = pageVal,
+                page_size = pageSizeVal,
+                total_pages = totalPages
+            });
+        });
     }
 }

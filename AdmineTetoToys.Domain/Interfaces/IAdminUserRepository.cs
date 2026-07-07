@@ -5,6 +5,7 @@ namespace AdmineTetoToys.Domain.Interfaces;
 public interface IAdminUserRepository
 {
     Task<AdminUser?> GetByEmailAsync(string email);
+    Task<AdminUser?> GetByIdAsync(string adminId);
     Task UpdateLastLoginAsync(string adminId);
     Task CreateAsync(AdminUser user);
 }
