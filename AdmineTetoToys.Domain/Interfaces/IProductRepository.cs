@@ -9,4 +9,12 @@ public interface IProductRepository
     Task<bool> PartExistsAsync(string partId);
     Task<(List<Part> Items, int TotalCount)> GetPartsPaginatedAsync(int page, int pageSize, string? search);
     Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search);
+    
+    Task CreateCategoryAsync(Category category);
+    Task<bool> CategoryExistsAsync(int categoryId);
+    Task<bool> CategoryExistsBySlugAsync(string slug);
+    Task<(List<Category> Items, int TotalCount)> GetCategoriesPaginatedAsync(int page, int pageSize, string? search);
+    Task CreateSubcategoryAsync(Subcategory subcategory);
+    Task<bool> SubcategoryExistsAsync(int categoryId, string name);
+    Task<(List<Subcategory> Items, int TotalCount)> GetSubcategoriesPaginatedAsync(int page, int pageSize, string? search);
 }

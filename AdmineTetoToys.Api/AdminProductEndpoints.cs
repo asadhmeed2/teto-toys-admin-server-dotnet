@@ -116,19 +116,34 @@ public static class AdminProductEndpoints
             var authCheck = await ValidateAdminSessionAsync(context);
             if (!authCheck.Authorized) return authCheck.ErrorResult!;
 
-            if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Category) || request.Price < 0)
+            if (string.IsNullOrWhiteSpace(request.Title) || request.Category <= 0 || request.Price < 0)
                 return Results.Json(new { error = "invalid_request", error_description = "Title, Category and a valid positive price are required." }, statusCode: 400);
 
             var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
 
-            // ponytail: verify all provided part IDs actually exist in DB
+            // ponytail: run existence checks in parallel
+            var categoryCheckTask = productRepo.CategoryExistsAsync(request.Category);
+            
+            var partCheckTasks = new List<(string PartId, Task<bool> Task)>();
             if (request.PartIds != null && request.PartIds.Count > 0)
             {
                 foreach (var partId in request.PartIds)
                 {
-                    if (!await productRepo.PartExistsAsync(partId))
-                        return Results.Json(new { error = "invalid_request", error_description = $"Part ID '{partId}' does not exist." }, statusCode: 400);
+                    partCheckTasks.Add((partId, productRepo.PartExistsAsync(partId)));
                 }
+            }
+
+            var tasksToAwait = new List<Task> { categoryCheckTask };
+            tasksToAwait.AddRange(partCheckTasks.Select(x => x.Task));
+            await Task.WhenAll(tasksToAwait);
+
+            if (!await categoryCheckTask)
+                return Results.Json(new { error = "invalid_request", error_description = $"Category ID '{request.Category}' does not exist." }, statusCode: 400);
+
+            foreach (var (partId, task) in partCheckTasks)
+            {
+                if (!await task)
+                    return Results.Json(new { error = "invalid_request", error_description = $"Part ID '{partId}' does not exist." }, statusCode: 400);
             }
 
             var product = new Product
@@ -137,8 +152,8 @@ public static class AdminProductEndpoints
                 Title = request.Title.Trim(),
                 Subtitle = request.Subtitle?.Trim(),
                 Description = request.Description?.Trim(),
-                Category = request.Category.Trim(),
-                Subcategory = request.Subcategory?.Trim(),
+                Category = request.Category,
+                Subcategory = request.Subcategory,
                 Price = request.Price,
                 ImageUrls = request.ImageUrls ?? new List<string>()
             };

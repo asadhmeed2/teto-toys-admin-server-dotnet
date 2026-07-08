@@ -204,14 +204,178 @@ public class ProductRepository : IProductRepository
                     Title = reader.GetString(reader.GetOrdinal("title")),
                     Subtitle = reader.IsDBNull(reader.GetOrdinal("subtitle")) ? null : reader.GetString(reader.GetOrdinal("subtitle")),
                     Description = reader.IsDBNull(reader.GetOrdinal("description")) ? null : reader.GetString(reader.GetOrdinal("description")),
-                    Category = reader.GetString(reader.GetOrdinal("category")),
-                    Subcategory = reader.IsDBNull(reader.GetOrdinal("subcategory")) ? null : reader.GetString(reader.GetOrdinal("subcategory")),
+                    Category = reader.GetInt32(reader.GetOrdinal("category")),
+                    Subcategory = reader.IsDBNull(reader.GetOrdinal("subcategory")) ? null : reader.GetInt32(reader.GetOrdinal("subcategory")),
                     Price = reader.GetDecimal(reader.GetOrdinal("price")),
                     ImageUrls = reader.IsDBNull(reader.GetOrdinal("image_urls")) 
                         ? new List<string>() 
                         : System.Text.Json.JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("image_urls"))) ?? new List<string>()
                 };
                 items.Add(product);
+            }
+        }
+
+        return (items, totalCount);
+    }
+
+    public async Task CreateCategoryAsync(Category category)
+    {
+        const string sql = "INSERT INTO categories (name, slug) VALUES (@name, @slug)";
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@name", category.Name);
+        cmd.Parameters.AddWithValue("@slug", category.Slug);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> CategoryExistsAsync(int categoryId)
+    {
+        const string sql = "SELECT COUNT(1) FROM categories WHERE id = @categoryId";
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@categoryId", categoryId);
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result) > 0;
+    }
+
+    public async Task<bool> CategoryExistsBySlugAsync(string slug)
+    {
+        const string sql = "SELECT COUNT(1) FROM categories WHERE slug = @slug";
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@slug", slug);
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result) > 0;
+    }
+
+    public async Task<(List<Category> Items, int TotalCount)> GetCategoriesPaginatedAsync(int page, int pageSize, string? search)
+    {
+        var items = new List<Category>();
+        int totalCount = 0;
+        int offset = (page - 1) * pageSize;
+
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var countSql = "SELECT COUNT(1) FROM categories";
+        if (!string.IsNullOrEmpty(search))
+        {
+            countSql += " WHERE name LIKE @search OR slug LIKE @search";
+        }
+        await using (var countCmd = new MySqlCommand(countSql, conn))
+        {
+            if (!string.IsNullOrEmpty(search))
+            {
+                countCmd.Parameters.AddWithValue("@search", $"%{search}%");
+            }
+            totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+        }
+
+        var itemsSql = "SELECT id, name, slug FROM categories";
+        if (!string.IsNullOrEmpty(search))
+        {
+            itemsSql += " WHERE name LIKE @search OR slug LIKE @search";
+        }
+        itemsSql += " ORDER BY name ASC LIMIT @limit OFFSET @offset";
+
+        await using (var itemsCmd = new MySqlCommand(itemsSql, conn))
+        {
+            if (!string.IsNullOrEmpty(search))
+            {
+                itemsCmd.Parameters.AddWithValue("@search", $"%{search}%");
+            }
+            itemsCmd.Parameters.AddWithValue("@limit", pageSize);
+            itemsCmd.Parameters.AddWithValue("@offset", offset);
+
+            await using var reader = await itemsCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new Category
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    Name = reader.GetString(reader.GetOrdinal("name")),
+                    Slug = reader.GetString(reader.GetOrdinal("slug"))
+                });
+            }
+        }
+
+        return (items, totalCount);
+    }
+
+    public async Task CreateSubcategoryAsync(Subcategory subcategory)
+    {
+        const string sql = "INSERT INTO subcategories (category_id, name) VALUES (@categoryId, @name)";
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@categoryId", subcategory.CategoryId);
+        cmd.Parameters.AddWithValue("@name", subcategory.Name);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> SubcategoryExistsAsync(int categoryId, string name)
+    {
+        const string sql = "SELECT COUNT(1) FROM subcategories WHERE category_id = @categoryId AND name = @name";
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@categoryId", categoryId);
+        cmd.Parameters.AddWithValue("@name", name);
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result) > 0;
+    }
+
+    public async Task<(List<Subcategory> Items, int TotalCount)> GetSubcategoriesPaginatedAsync(int page, int pageSize, string? search)
+    {
+        var items = new List<Subcategory>();
+        int totalCount = 0;
+        int offset = (page - 1) * pageSize;
+
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var countSql = "SELECT COUNT(1) FROM subcategories";
+        if (!string.IsNullOrEmpty(search))
+        {
+            countSql += " WHERE name LIKE @search";
+        }
+        await using (var countCmd = new MySqlCommand(countSql, conn))
+        {
+            if (!string.IsNullOrEmpty(search))
+            {
+                countCmd.Parameters.AddWithValue("@search", $"%{search}%");
+            }
+            totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+        }
+
+        var itemsSql = "SELECT id, category_id, name FROM subcategories";
+        if (!string.IsNullOrEmpty(search))
+        {
+            itemsSql += " WHERE name LIKE @search";
+        }
+        itemsSql += " ORDER BY name ASC LIMIT @limit OFFSET @offset";
+
+        await using (var itemsCmd = new MySqlCommand(itemsSql, conn))
+        {
+            if (!string.IsNullOrEmpty(search))
+            {
+                itemsCmd.Parameters.AddWithValue("@search", $"%{search}%");
+            }
+            itemsCmd.Parameters.AddWithValue("@limit", pageSize);
+            itemsCmd.Parameters.AddWithValue("@offset", offset);
+
+            await using var reader = await itemsCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new Subcategory
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    CategoryId = reader.GetInt32(reader.GetOrdinal("category_id")),
+                    Name = reader.GetString(reader.GetOrdinal("name"))
+                });
             }
         }
 

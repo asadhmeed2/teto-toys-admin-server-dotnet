@@ -32,5 +32,6 @@ app.UseHttpsRedirection();
 app.MapAdminAuthEndpoints();
 app.MapAdminUserEndpoints();
 app.MapAdminProductEndpoints();
+app.MapAdminCategoryEndpoints();
 
 app.Run();
