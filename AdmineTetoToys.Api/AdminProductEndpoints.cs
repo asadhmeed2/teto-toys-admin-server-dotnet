@@ -125,7 +125,8 @@ public static class AdminProductEndpoints
                 Category = request.Category,
                 Subcategory = request.Subcategory,
                 Price = request.Price,
-                ImageUrls = request.ImageUrls ?? new List<string>()
+                ImageUrls = request.ImageUrls ?? new List<string>(),
+                IsDisplayed = request.IsDisplayed ?? true
             };
 
             await productRepo.CreateProductWithPartsAsync(product, request.PartIds ?? new List<string>());
@@ -139,6 +140,8 @@ public static class AdminProductEndpoints
                 category = product.Category,
                 subcategory = product.Subcategory,
                 price = product.Price,
+                image_urls = product.ImageUrls,
+                is_displayed = product.IsDisplayed,
                 part_ids = request.PartIds ?? new List<string>()
             }, statusCode: 201);
         });
@@ -170,7 +173,8 @@ public static class AdminProductEndpoints
                     category = p.Category,
                     subcategory = p.Subcategory,
                     price = p.Price,
-                    image_urls = p.ImageUrls
+                    image_urls = p.ImageUrls,
+                    is_displayed = p.IsDisplayed
                 }),
                 total_count = totalCount,
                 page = pageVal,
@@ -202,6 +206,7 @@ public static class AdminProductEndpoints
                 subcategory = product.Subcategory,
                 price = product.Price,
                 image_urls = product.ImageUrls,
+                is_displayed = product.IsDisplayed,
                 part_ids = partIds
             });
         });
@@ -251,7 +256,8 @@ public static class AdminProductEndpoints
                 Category = request.Category,
                 Subcategory = request.Subcategory,
                 Price = request.Price,
-                ImageUrls = request.ImageUrls ?? new List<string>()
+                ImageUrls = request.ImageUrls ?? new List<string>(),
+                IsDisplayed = request.IsDisplayed ?? true
             };
 
             await productRepo.UpdateProductWithPartsAsync(product, request.PartIds ?? new List<string>());
@@ -265,8 +271,25 @@ public static class AdminProductEndpoints
                 category = product.Category,
                 subcategory = product.Subcategory,
                 price = product.Price,
+                image_urls = product.ImageUrls,
+                is_displayed = product.IsDisplayed,
                 part_ids = request.PartIds ?? new List<string>()
             });
+        });
+
+        // DELETE /api/admin/products/{productId} — Soft delete a product
+        productsGroup.MapDelete("/{productId}", async (string productId, HttpContext context) =>
+        {
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            if (!authCheck.Authorized) return authCheck.ErrorResult!;
+
+            var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
+            var product = await productRepo.GetProductByIdAsync(productId);
+            if (product == null)
+                return Results.NotFound();
+
+            await productRepo.SoftDeleteProductAsync(productId);
+            return Results.NoContent();
         });
     }
 }

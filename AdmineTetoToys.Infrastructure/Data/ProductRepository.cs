@@ -23,8 +23,8 @@ public class ProductRepository : IProductRepository
         {
             // 1. Insert product
             const string insertProductSql = @"
-                INSERT INTO products (product_id, title, subtitle, description, category, subcategory, price, image_urls)
-                VALUES (@productId, @title, @subtitle, @description, @category, @subcategory, @price, @imageUrls)";
+                INSERT INTO products (product_id, title, subtitle, description, category, subcategory, price, image_urls, is_displayed)
+                VALUES (@productId, @title, @subtitle, @description, @category, @subcategory, @price, @imageUrls, @isDisplayed)";
             
             await using var productCmd = new MySqlCommand(insertProductSql, conn, transaction);
             productCmd.Parameters.AddWithValue("@productId", product.ProductId);
@@ -35,6 +35,7 @@ public class ProductRepository : IProductRepository
             productCmd.Parameters.AddWithValue("@subcategory", (object?)product.Subcategory ?? DBNull.Value);
             productCmd.Parameters.AddWithValue("@price", product.Price);
             productCmd.Parameters.AddWithValue("@imageUrls", product.ImageUrls != null ? System.Text.Json.JsonSerializer.Serialize(product.ImageUrls) : DBNull.Value);
+            productCmd.Parameters.AddWithValue("@isDisplayed", product.IsDisplayed);
             await productCmd.ExecuteNonQueryAsync();
 
             // 2. Insert relationships in product_parts
@@ -163,10 +164,10 @@ public class ProductRepository : IProductRepository
         await conn.OpenAsync();
 
         // 1. Get total count
-        var countSql = "SELECT COUNT(1) FROM products";
+        var countSql = "SELECT COUNT(1) FROM products WHERE is_deleted = 0";
         if (!string.IsNullOrEmpty(search))
         {
-            countSql += " WHERE title LIKE @search OR description LIKE @search";
+            countSql += " AND (title LIKE @search OR description LIKE @search)";
         }
 
         await using (var countCmd = new MySqlCommand(countSql, conn))
@@ -179,10 +180,10 @@ public class ProductRepository : IProductRepository
         }
 
         // 2. Get paginated items
-        var itemsSql = "SELECT product_id, title, subtitle, description, category, subcategory, price, image_urls FROM products";
+        var itemsSql = "SELECT product_id, title, subtitle, description, category, subcategory, price, image_urls, is_displayed FROM products WHERE is_deleted = 0";
         if (!string.IsNullOrEmpty(search))
         {
-            itemsSql += " WHERE title LIKE @search OR description LIKE @search";
+            itemsSql += " AND (title LIKE @search OR description LIKE @search)";
         }
         itemsSql += " ORDER BY created_at DESC LIMIT @limit OFFSET @offset";
 
@@ -209,7 +210,8 @@ public class ProductRepository : IProductRepository
                     Price = reader.GetDecimal(reader.GetOrdinal("price")),
                     ImageUrls = reader.IsDBNull(reader.GetOrdinal("image_urls")) 
                         ? new List<string>() 
-                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("image_urls"))) ?? new List<string>()
+                        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("image_urls"))) ?? new List<string>(),
+                    IsDisplayed = reader.GetBoolean(reader.GetOrdinal("is_displayed"))
                 };
                 items.Add(product);
             }
@@ -384,7 +386,7 @@ public class ProductRepository : IProductRepository
 
     public async Task<Product?> GetProductByIdAsync(string productId)
     {
-        const string sql = "SELECT product_id, title, subtitle, description, category, subcategory, price, image_urls FROM products WHERE product_id = @productId";
+        const string sql = "SELECT product_id, title, subtitle, description, category, subcategory, price, image_urls, is_displayed FROM products WHERE product_id = @productId AND is_deleted = 0";
 
         await using var conn = new MySqlConnection(_connectionString);
         await conn.OpenAsync();
@@ -406,7 +408,8 @@ public class ProductRepository : IProductRepository
             Price = reader.GetDecimal(reader.GetOrdinal("price")),
             ImageUrls = reader.IsDBNull(reader.GetOrdinal("image_urls")) 
                 ? new List<string>() 
-                : System.Text.Json.JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("image_urls"))) ?? new List<string>()
+                : System.Text.Json.JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("image_urls"))) ?? new List<string>(),
+            IsDisplayed = reader.GetBoolean(reader.GetOrdinal("is_displayed"))
         };
     }
 
@@ -441,8 +444,9 @@ public class ProductRepository : IProductRepository
             const string updateProductSql = @"
                 UPDATE products 
                 SET title = @title, subtitle = @subtitle, description = @description, 
-                    category = @category, subcategory = @subcategory, price = @price, image_urls = @imageUrls
-                WHERE product_id = @productId";
+                    category = @category, subcategory = @subcategory, price = @price, 
+                    image_urls = @imageUrls, is_displayed = @isDisplayed
+                WHERE product_id = @productId AND is_deleted = 0";
             
             await using var productCmd = new MySqlCommand(updateProductSql, conn, transaction);
             productCmd.Parameters.AddWithValue("@productId", product.ProductId);
@@ -453,6 +457,7 @@ public class ProductRepository : IProductRepository
             productCmd.Parameters.AddWithValue("@subcategory", (object?)product.Subcategory ?? DBNull.Value);
             productCmd.Parameters.AddWithValue("@price", product.Price);
             productCmd.Parameters.AddWithValue("@imageUrls", product.ImageUrls != null ? System.Text.Json.JsonSerializer.Serialize(product.ImageUrls) : DBNull.Value);
+            productCmd.Parameters.AddWithValue("@isDisplayed", product.IsDisplayed);
             await productCmd.ExecuteNonQueryAsync();
 
             // 2. Delete existing relationships in product_parts
@@ -484,5 +489,15 @@ public class ProductRepository : IProductRepository
             await transaction.RollbackAsync();
             throw;
         }
+    }
+
+    public async Task SoftDeleteProductAsync(string productId)
+    {
+        const string sql = "UPDATE products SET is_deleted = 1 WHERE product_id = @productId";
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@productId", productId);
+        await cmd.ExecuteNonQueryAsync();
     }
 }

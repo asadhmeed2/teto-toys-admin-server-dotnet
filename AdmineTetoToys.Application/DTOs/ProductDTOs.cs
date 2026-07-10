@@ -10,7 +10,8 @@ public record AddProductRequest(
     [property: JsonPropertyName("subcategory")] int? Subcategory,
     [property: JsonPropertyName("price")] decimal Price,
     [property: JsonPropertyName("part_ids")] List<string> PartIds,
-    [property: JsonPropertyName("image_urls")] List<string>? ImageUrls
+    [property: JsonPropertyName("image_urls")] List<string>? ImageUrls,
+    [property: JsonPropertyName("is_displayed")] bool? IsDisplayed
 );
 
 public record AddPartRequest(

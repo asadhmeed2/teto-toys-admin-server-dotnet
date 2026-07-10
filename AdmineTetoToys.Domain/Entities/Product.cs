@@ -10,4 +10,8 @@ public class Product
     public int? Subcategory { get; set; }
     public decimal Price { get; set; }
     public List<string> ImageUrls { get; set; } = new List<string>();
+    
+    // ponytail: display and soft-delete flags
+    public bool IsDisplayed { get; set; } = true;
+    public bool IsDeleted { get; set; } = false;
 }

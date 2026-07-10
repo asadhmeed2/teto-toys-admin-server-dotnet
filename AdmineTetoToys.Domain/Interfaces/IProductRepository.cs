@@ -8,6 +8,7 @@ public interface IProductRepository
     Task<Product?> GetProductByIdAsync(string productId);
     Task<List<string>> GetProductPartIdsAsync(string productId);
     Task UpdateProductWithPartsAsync(Product product, List<string> partIds);
+    Task SoftDeleteProductAsync(string productId);
     Task CreatePartAsync(Part part);
     Task<bool> PartExistsAsync(string partId);
     Task<(List<Part> Items, int TotalCount)> GetPartsPaginatedAsync(int page, int pageSize, string? search);
