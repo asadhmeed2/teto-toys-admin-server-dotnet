@@ -36,7 +36,7 @@ public static class AdminAuthEndpoints
 
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
             string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 15);
-            string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, secret, 1 * 24 * 60);
+            string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, 1 * 24 * 60);
             await redisService.SetRefreshTokenAsync(refreshToken, TimeSpan.FromDays(7));
 
             // ponytail: persist admin session in Redis for auth checks on protected endpoints
@@ -113,7 +113,7 @@ public static class AdminAuthEndpoints
 
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
             string newAccessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 15);
-            string newRefreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, secret, 1 * 24 * 60);
+            string newRefreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, 1 * 24 * 60);
             
             await redisService.SetRefreshTokenAsync(newRefreshToken, TimeSpan.FromDays(7));
 
@@ -139,19 +139,29 @@ public static class AdminAuthEndpoints
         });
 
         // GET /api/auth/me
-        group.MapGet("/me", (HttpContext context) =>
+        group.MapGet("/me", async (HttpContext context) =>
         {
             var authHeader = context.Request.Headers.Authorization.ToString();
             if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
                 return Results.Json(new { error = "unauthorized", error_description = "Missing or invalid Authorization header." }, statusCode: 401);
 
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
+            var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
 
             var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
             if (userInfo == null)
                 return Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401);
+
+            // ponytail: the refresh token carries first/last name — pull it from there for the full profile
+            var refreshToken = context.Request.Cookies["refresh_token"];
+            if (!string.IsNullOrEmpty(refreshToken) && await redisService.ValidateRefreshTokenAsync(refreshToken))
+            {
+                var refreshInfo = tokenService.ValidateAndGetUserInfo(refreshToken, secret);
+                if (refreshInfo != null)
+                    return Results.Ok(refreshInfo);
+            }
 
             return Results.Ok(userInfo);
         });
