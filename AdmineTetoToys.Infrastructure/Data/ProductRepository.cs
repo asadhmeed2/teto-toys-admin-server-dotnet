@@ -165,7 +165,7 @@ public class ProductRepository : IProductRepository
         await conn.OpenAsync();
 
         // 1. Get total count
-        var countSql = "SELECT COUNT(1) FROM products WHERE is_deleted = 0";
+        var countSql = "SELECT COUNT(1) FROM products WHERE 1=1";
         if (!string.IsNullOrEmpty(search))
         {
             countSql += " AND (title LIKE @search OR description LIKE @search)";
@@ -180,8 +180,8 @@ public class ProductRepository : IProductRepository
             totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
         }
 
-        // 2. Get paginated items
-        var itemsSql = "SELECT product_id, title, subtitle, description, category, subcategory, price, image_urls, is_displayed FROM products WHERE is_deleted = 0";
+        // 2. Get paginated items — includes soft-deleted products, flagged via is_deleted
+        var itemsSql = "SELECT product_id, title, subtitle, description, category, subcategory, price, image_urls, is_displayed, is_deleted FROM products WHERE 1=1";
         if (!string.IsNullOrEmpty(search))
         {
             itemsSql += " AND (title LIKE @search OR description LIKE @search)";
@@ -212,7 +212,8 @@ public class ProductRepository : IProductRepository
                     ImageUrls = reader.IsDBNull(reader.GetOrdinal("image_urls")) 
                         ? new List<string>() 
                         : System.Text.Json.JsonSerializer.Deserialize<List<string>>(reader.GetString(reader.GetOrdinal("image_urls"))) ?? new List<string>(),
-                    IsDisplayed = reader.GetBoolean(reader.GetOrdinal("is_displayed"))
+                    IsDisplayed = reader.GetBoolean(reader.GetOrdinal("is_displayed")),
+                    IsDeleted = reader.GetBoolean(reader.GetOrdinal("is_deleted"))
                 };
                 items.Add(product);
             }

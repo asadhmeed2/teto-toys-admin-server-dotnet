@@ -174,7 +174,8 @@ public static class AdminProductEndpoints
                     subcategory = p.Subcategory,
                     price = p.Price,
                     image_urls = p.ImageUrls,
-                    is_displayed = p.IsDisplayed
+                    is_displayed = p.IsDisplayed,
+                    is_deleted = p.IsDeleted
                 }),
                 total_count = totalCount,
                 page = pageVal,
