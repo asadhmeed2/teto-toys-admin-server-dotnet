@@ -9,6 +9,7 @@ public interface IProductRepository
     Task<List<string>> GetProductPartIdsAsync(string productId);
     Task UpdateProductWithPartsAsync(Product product, List<string> partIds, string language = "en");
     Task SoftDeleteProductAsync(string productId);
+    Task RestoreProductAsync(string productId);
     Task SetProductDisplayAsync(string productId, bool isDisplayed);
     Task CreatePartAsync(Part part, string language = "en");
     Task<bool> PartExistsAsync(string partId);

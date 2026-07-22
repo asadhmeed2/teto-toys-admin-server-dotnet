@@ -750,6 +750,37 @@ public class ProductRepository : IProductRepository
         }
     }
 
+    public async Task RestoreProductAsync(string productId)
+    {
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        // 1. Get original category
+        const string getCatSql = "SELECT category FROM products WHERE product_id = @productId";
+        int categoryId = 0;
+        await using (var getCmd = new MySqlCommand(getCatSql, conn))
+        {
+            getCmd.Parameters.AddWithValue("@productId", productId);
+            var result = await getCmd.ExecuteScalarAsync();
+            if (result != null && result != DBNull.Value)
+                categoryId = Convert.ToInt32(result);
+        }
+
+        // 2. Clear the soft-delete flag
+        const string restoreSql = "UPDATE products SET is_deleted = 0 WHERE product_id = @productId";
+        await using (var restoreCmd = new MySqlCommand(restoreSql, conn))
+        {
+            restoreCmd.Parameters.AddWithValue("@productId", productId);
+            await restoreCmd.ExecuteNonQueryAsync();
+        }
+
+        // 3. Recalculate category active product count
+        if (categoryId > 0)
+        {
+            await RecalculateCategoryActiveCountAsync(conn, null, categoryId);
+        }
+    }
+
     private async Task RecalculateCategoryActiveCountAsync(MySqlConnection conn, MySqlTransaction? transaction, int categoryId)
     {
         const string sql = @"

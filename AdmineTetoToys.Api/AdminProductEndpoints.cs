@@ -300,6 +300,17 @@ public static class AdminProductEndpoints
             return Results.Ok(new { product_id = productId, is_displayed = request.IsDisplayed });
         });
 
+        // PATCH /api/admin/products/{productId}/restore — Restore a soft-deleted product
+        productsGroup.MapPatch("/{productId}/restore", async (string productId, HttpContext context) =>
+        {
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            if (!authCheck.Authorized) return authCheck.ErrorResult!;
+
+            var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
+            await productRepo.RestoreProductAsync(productId);
+            return Results.Ok(new { product_id = productId, is_deleted = false });
+        });
+
         // DELETE /api/admin/products/{productId} — Soft delete a product
         productsGroup.MapDelete("/{productId}", async (string productId, HttpContext context) =>
         {
