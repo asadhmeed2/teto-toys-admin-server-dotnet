@@ -31,6 +31,9 @@ public static class AdminSessionValidator
         if (session == null)
             return (false, null, Results.Json(new { error = "unauthorized", error_description = "Session expired. Please log in again." }, statusCode: 401));
 
+        // Slide the session window so active users are never kicked out mid-use
+        await redisService.SetAdminSessionAsync(callerAdminId, session.Role, TimeSpan.FromMinutes(15));
+
         if (allowedRole != null)
         {
             if (!string.Equals(session.Role, allowedRole, StringComparison.OrdinalIgnoreCase))
