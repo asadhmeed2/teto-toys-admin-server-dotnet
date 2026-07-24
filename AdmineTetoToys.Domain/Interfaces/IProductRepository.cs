@@ -17,6 +17,7 @@ public interface IProductRepository
     Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search, string language = "en");
 
     Task CreateCategoryAsync(Category category, string language = "en");
+    Task DeleteCategoryAsync(int categoryId);
     Task<bool> CategoryExistsAsync(int categoryId);
     Task<bool> CategoryExistsBySlugAsync(string slug);
     Task<(List<Category> Items, int TotalCount)> GetCategoriesPaginatedAsync(int page, int pageSize, string? search, string language = "en");

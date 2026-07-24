@@ -325,6 +325,74 @@ public class ProductRepository : IProductRepository
         }
     }
 
+    public async Task DeleteCategoryAsync(int categoryId)
+    {
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var transaction = await conn.BeginTransactionAsync();
+
+        try
+        {
+            // 1. Resolve the General category ID (by slug)
+            const string findGeneralSql = "SELECT id FROM categories WHERE slug = 'general' LIMIT 1";
+            int generalCategoryId;
+            await using (var cmd = new MySqlCommand(findGeneralSql, conn, transaction))
+            {
+                var result = await cmd.ExecuteScalarAsync();
+                if (result == null || result == DBNull.Value)
+                    throw new InvalidOperationException("The 'general' category does not exist in the database.");
+                generalCategoryId = Convert.ToInt32(result);
+            }
+
+            if (categoryId == generalCategoryId)
+                throw new InvalidOperationException("The General category cannot be deleted.");
+
+            // 2. Move all subcategories to the General category
+            const string moveSubsSql = "UPDATE subcategories SET category_id = @generalId WHERE category_id = @catId";
+            await using (var cmd = new MySqlCommand(moveSubsSql, conn, transaction))
+            {
+                cmd.Parameters.AddWithValue("@generalId", generalCategoryId);
+                cmd.Parameters.AddWithValue("@catId", categoryId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 3. Move all products to General (subcategory kept — it was just moved to General too)
+            const string moveProductsSql = "UPDATE products SET category = @generalId WHERE category = @catId";
+            await using (var cmd = new MySqlCommand(moveProductsSql, conn, transaction))
+            {
+                cmd.Parameters.AddWithValue("@generalId", generalCategoryId);
+                cmd.Parameters.AddWithValue("@catId", categoryId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 4. Recalculate General's active product count (within the same transaction)
+            await RecalculateCategoryActiveCountAsync(conn, transaction, generalCategoryId);
+
+            // 5. Delete category translations
+            const string deleteTranslationsSql = "DELETE FROM category_translations WHERE category_id = @catId";
+            await using (var cmd = new MySqlCommand(deleteTranslationsSql, conn, transaction))
+            {
+                cmd.Parameters.AddWithValue("@catId", categoryId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // 6. Delete the category row itself
+            const string deleteCategorySql = "DELETE FROM categories WHERE id = @catId";
+            await using (var cmd = new MySqlCommand(deleteCategorySql, conn, transaction))
+            {
+                cmd.Parameters.AddWithValue("@catId", categoryId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
     public async Task<bool> CategoryExistsAsync(int categoryId)
     {
         const string sql = "SELECT COUNT(1) FROM categories WHERE id = @categoryId";

@@ -53,6 +53,33 @@ public static class AdminCategoryEndpoints
             }, statusCode: 201);
         });
 
+        // DELETE /api/admin/categories/{categoryId}
+        // Moves subcategories and products to the General category, then deletes the category.
+        categoriesGroup.MapDelete("/{categoryId}", async (int categoryId, HttpContext context) =>
+        {
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            if (!authCheck.Authorized) return authCheck.ErrorResult!;
+
+            var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
+
+            if (!await productRepo.CategoryExistsAsync(categoryId))
+                return Results.NotFound(new { error = "not_found", error_description = $"Category {categoryId} not found." });
+
+            try
+            {
+                await productRepo.DeleteCategoryAsync(categoryId);
+                return Results.NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Json(new { error = "invalid_request", error_description = ex.Message }, statusCode: 400);
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { error = "server_error", error_description = "Failed to delete category. All changes were rolled back.", detail = ex.Message }, statusCode: 500);
+            }
+        });
+
         // GET /api/admin/categories
         categoriesGroup.MapGet("/", async (HttpContext context, int? page, int? pageSize, string? search, string? language) =>
         {
