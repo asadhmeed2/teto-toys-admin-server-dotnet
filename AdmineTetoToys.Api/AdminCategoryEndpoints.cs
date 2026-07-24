@@ -103,7 +103,8 @@ public static class AdminCategoryEndpoints
                 {
                     id = c.Id,
                     name = c.Name,
-                    slug = c.Slug
+                    slug = c.Slug,
+                    number_of_active_products = c.NumberOfActiveProducts
                 }),
                 total_count = totalCount,
                 page = pageVal,

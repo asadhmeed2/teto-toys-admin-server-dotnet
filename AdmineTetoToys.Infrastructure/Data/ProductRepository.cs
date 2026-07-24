@@ -444,7 +444,7 @@ public class ProductRepository : IProductRepository
         }
 
         var itemsSql = @"
-            SELECT c.id, COALESCE(req.name, fb.name) AS name, c.slug
+            SELECT c.id, COALESCE(req.name, fb.name) AS name, c.slug, c.number_of_active_products
             FROM categories c
             LEFT JOIN category_translations req ON req.category_id = c.id AND req.language_code = @language
             LEFT JOIN category_translations fb ON fb.category_id = c.id AND fb.language_code = 'en'";
@@ -471,7 +471,8 @@ public class ProductRepository : IProductRepository
                 {
                     Id = reader.GetInt32(reader.GetOrdinal("id")),
                     Name = reader.GetString(reader.GetOrdinal("name")),
-                    Slug = reader.GetString(reader.GetOrdinal("slug"))
+                    Slug = reader.GetString(reader.GetOrdinal("slug")),
+                    NumberOfActiveProducts = reader.GetInt32(reader.GetOrdinal("number_of_active_products"))
                 });
             }
         }
