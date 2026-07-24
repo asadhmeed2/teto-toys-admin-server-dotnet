@@ -57,7 +57,7 @@ public static class AdminCategoryEndpoints
         // Moves subcategories and products to the General category, then deletes the category.
         categoriesGroup.MapDelete("/{categoryId}", async (int categoryId, HttpContext context) =>
         {
-            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context, "Admin");
             if (!authCheck.Authorized) return authCheck.ErrorResult!;
 
             var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
