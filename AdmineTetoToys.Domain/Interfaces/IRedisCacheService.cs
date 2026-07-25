@@ -6,6 +6,8 @@ public interface IRedisCacheService
     Task<bool> ValidateRefreshTokenAsync(string token);
     Task InvalidateRefreshTokenAsync(string token);
 
+    Task<AdmineTetoToys.Domain.Entities.AdminRefreshTokenData?> GetRefreshTokenAsync(string Id);
+
     Task SetResetTokenAsync(string key, string userId, TimeSpan ttl);
     Task<string?> GetResetTokenUserIdAsync(string key);
     Task InvalidateResetTokenAsync(string key);

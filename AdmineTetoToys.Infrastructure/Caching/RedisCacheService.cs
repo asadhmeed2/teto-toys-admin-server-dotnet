@@ -30,6 +30,13 @@ public class RedisCacheService : IRedisCacheService
         await db.KeyDeleteAsync($"refresh:{token}");
     }
 
+    public async Task<AdmineTetoToys.Domain.Entities.AdminRefreshTokenData?> GetRefreshTokenAsync(string Id)
+    {
+        var db = _multiplexer.GetDatabase();
+        var value = await db.StringGetAsync($"refresh:{Id}");
+        return value.HasValue ? new AdmineTetoToys.Domain.Entities.AdminRefreshTokenData(Id, value.ToString()) : null;
+    }
+
     public async Task SetResetTokenAsync(string key, string userId, TimeSpan ttl)
     {
         var db = _multiplexer.GetDatabase();
