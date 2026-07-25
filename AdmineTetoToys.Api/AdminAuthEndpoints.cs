@@ -1,6 +1,8 @@
 
 using AdmineTetoToys.Application.DTOs;
+using AdmineTetoToys.Domain.Configuration;
 using AdmineTetoToys.Domain.Interfaces;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 public static class AdminAuthEndpoints
@@ -17,6 +19,7 @@ public static class AdminAuthEndpoints
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
             var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var jwt = context.RequestServices.GetRequiredService<IOptions<JwtOptions>>().Value;
 
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return Results.Json(new { error = "invalid_request", error_description = "Email and password are required." }, statusCode: 400);
@@ -34,25 +37,25 @@ public static class AdminAuthEndpoints
 
             Console.WriteLine($"Admin ID: {admin.AdminId}, Role: {admin.Role}, First Name: {admin.FirstName}, Last Name: {admin.LastName}");
 
-            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 15);
-            string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, 1 * 24 * 60);
+            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, jwt.AccessTokenMinutes);
+            string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, jwt.RefreshTokenMinutes);
 
-            await redisService.SetRefreshTokenAsync(refreshToken, IAdminUserRepository.RefreshTokenTtl);
+            await redisService.SetRefreshTokenAsync(refreshToken, jwt.RefreshTokenTtl);
 
             // ponytail: persist admin session in Redis for auth checks on protected endpoints
-            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, IAdminUserRepository.AccessTokenTtl);
+            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, jwt.AccessTokenTtl);
 
-            // ponytail: store user permissions in Redis for 7 days (lifetime of session)
+            // ponytail: store user permissions in Redis for the lifetime of the session
             var permissions = new { userCreation = admin.Role == "Admin" };
             var permissionsJson = JsonSerializer.Serialize(permissions);
-            await redisService.SetPermissionsAsync(admin.AdminId, permissionsJson, IAdminUserRepository.RefreshTokenTtl);
+            await redisService.SetPermissionsAsync(admin.AdminId, permissionsJson, jwt.RefreshTokenTtl);
 
             context.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
             {
                 HttpOnly = true,
                 SameSite = SameSiteMode.Strict,
                 Secure = false, // set true in production
-                MaxAge = IAdminUserRepository.RefreshTokenTtl,
+                MaxAge = jwt.RefreshTokenTtl,
                 Path = "/",
             });
 
@@ -60,7 +63,7 @@ public static class AdminAuthEndpoints
             {
                 access_token = accessToken,
                 token_type = "Bearer",
-                expires_in = 900,
+                expires_in = jwt.AccessTokenSeconds,
                 role = admin.Role,
             });
         });
@@ -94,6 +97,7 @@ public static class AdminAuthEndpoints
             var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var jwt = context.RequestServices.GetRequiredService<IOptions<JwtOptions>>().Value;
 
 
             var refreshToken = context.Request.Cookies["refresh_token"];
@@ -117,16 +121,16 @@ public static class AdminAuthEndpoints
                 return Results.Json(new { error = "invalid_token", error_description = "Malformed refresh token." }, statusCode: 401);
 
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
-            string newAccessToken = tokenService.GenerateAccessToken(adminId, role, secret, 1);
+            string newAccessToken = tokenService.GenerateAccessToken(adminId, role, secret, jwt.AccessTokenMinutes);
 
             // Keep the admin session alive in Redis for the same duration as the new access token
-            await redisService.SetAdminSessionAsync(adminId, role, TimeSpan.FromMinutes(1));
+            await redisService.SetAdminSessionAsync(adminId, role, jwt.AccessTokenTtl);
 
             return Results.Ok(new
             {
                 access_token = newAccessToken,
                 token_type = "Bearer",
-                expires_in = 900,
+                expires_in = jwt.AccessTokenSeconds,
                 role,
             });
         });
@@ -165,6 +169,7 @@ public static class AdminAuthEndpoints
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
             var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var jwt = context.RequestServices.GetRequiredService<IOptions<JwtOptions>>().Value;
 
             // 1. Validate Access Token (JWT)
             var authHeader = context.Request.Headers.Authorization.ToString();
@@ -193,7 +198,7 @@ public static class AdminAuthEndpoints
                 var role = roleProp?.GetValue(userInfo)?.ToString() ?? "Partner";
                 var permissions = new { userCreation = role == "Admin" };
                 permissionsJson = JsonSerializer.Serialize(permissions);
-                await redisService.SetPermissionsAsync(callerAdminId, permissionsJson, TimeSpan.FromDays(7));
+                await redisService.SetPermissionsAsync(callerAdminId, permissionsJson, jwt.RefreshTokenTtl);
             }
 
             return Results.Content(permissionsJson, "application/json");

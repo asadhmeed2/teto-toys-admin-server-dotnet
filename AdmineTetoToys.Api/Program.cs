@@ -1,6 +1,8 @@
 using DotNetEnv;
 using AdmineTetoToys.Application;
 using AdmineTetoToys.Infrastructure;
+using AdmineTetoToys.Domain.Configuration;
+using Microsoft.Extensions.Options;
 
 // Load .env file before building the host.
 Env.Load(options: new LoadOptions(setEnvVars: true, clobberExistingVars: false));
@@ -20,6 +22,12 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
+
+// Central token lifetimes (access/refresh TTLs) — used by admin auth and AuthService.
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+// Expose the bound value directly so layers that don't reference Microsoft.Extensions.Options
+// (e.g. Application/AuthService) can inject JwtOptions without the IOptions<> wrapper.
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<JwtOptions>>().Value);
 
 builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);

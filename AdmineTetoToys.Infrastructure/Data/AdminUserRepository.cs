@@ -9,9 +9,6 @@ public class AdminUserRepository : IAdminUserRepository
 {
     private readonly string _connectionString;
 
-    public static TimeSpan AccessTokenTtl { get; private set; } = TimeSpan.FromMinutes(15); // Access token TTL
-    public static TimeSpan RefreshTokenTtl { get; private set; } = TimeSpan.FromDays(7); // Refresh token TTL
-
     public AdminUserRepository(string connectionString)
     {
         _connectionString = connectionString;

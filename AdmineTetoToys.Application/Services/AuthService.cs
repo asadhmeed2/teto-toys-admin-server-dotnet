@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using AdmineTetoToys.Application.DTOs;
+using AdmineTetoToys.Domain.Configuration;
 using AdmineTetoToys.Domain.Interfaces;
 
 namespace AdmineTetoToys.Application.Services;
@@ -10,17 +11,20 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly IRedisCacheService _redisService;
+    private readonly JwtOptions _jwt;
 
     public AuthService(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
-        IRedisCacheService redisService)
+        IRedisCacheService redisService,
+        JwtOptions jwt)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _redisService = redisService;
+        _jwt = jwt;
     }
 
     public async Task<(bool Success, LoginResponse? Response, string? RefreshToken, string? Error, string? ErrorDescription, int StatusCode)> LoginAsync(LoginRequest request, string secret)
@@ -42,12 +46,12 @@ public class AuthService : IAuthService
 
             await _userRepository.UpdateLastLoginAsync(user.UserId);
 
-            string accessToken = _tokenService.GenerateAccessToken(user.UserId, secret, 15);
-            string refreshToken = _tokenService.GenerateRefreshToken(user.UserId, secret, 7 * 24 * 60);
+            string accessToken = _tokenService.GenerateAccessToken(user.UserId, secret, _jwt.AccessTokenMinutes);
+            string refreshToken = _tokenService.GenerateRefreshToken(user.UserId, secret, _jwt.RefreshTokenMinutes);
 
-            await _redisService.SetRefreshTokenAsync(refreshToken, TimeSpan.FromDays(7));
+            await _redisService.SetRefreshTokenAsync(refreshToken, _jwt.RefreshTokenTtl);
 
-            return (true, new LoginResponse(accessToken, "Bearer", 900), refreshToken, null, null, 200);
+            return (true, new LoginResponse(accessToken, "Bearer", _jwt.AccessTokenSeconds), refreshToken, null, null, 200);
         }
         catch (Exception ex)
         {
@@ -67,12 +71,12 @@ public class AuthService : IAuthService
         if (string.IsNullOrEmpty(userId))
             return (false, null, null, "invalid_token", "Malformed refresh token.", 401);
 
-        string newAccessToken = _tokenService.GenerateAccessToken(userId, secret, 15);
-        string newRefreshToken = _tokenService.GenerateRefreshToken(userId, secret, 7 * 24 * 60);
-        
-        await _redisService.SetRefreshTokenAsync(newRefreshToken, TimeSpan.FromDays(7));
+        string newAccessToken = _tokenService.GenerateAccessToken(userId, secret, _jwt.AccessTokenMinutes);
+        string newRefreshToken = _tokenService.GenerateRefreshToken(userId, secret, _jwt.RefreshTokenMinutes);
 
-        return (true, new LoginResponse(newAccessToken, "Bearer", 900), newRefreshToken, null, null, 200);
+        await _redisService.SetRefreshTokenAsync(newRefreshToken, _jwt.RefreshTokenTtl);
+
+        return (true, new LoginResponse(newAccessToken, "Bearer", _jwt.AccessTokenSeconds), newRefreshToken, null, null, 200);
     }
 
     public async Task<(bool Success, object? UserInfo, string? Error, string? ErrorDescription, int StatusCode)> GetCurrentUserAsync(string token, string secret)
