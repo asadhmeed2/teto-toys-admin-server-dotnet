@@ -1,8 +1,4 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+
 using AdmineTetoToys.Application.DTOs;
 using AdmineTetoToys.Domain.Interfaces;
 using System.Text.Json;
@@ -38,25 +34,25 @@ public static class AdminAuthEndpoints
 
             Console.WriteLine($"Admin ID: {admin.AdminId}, Role: {admin.Role}, First Name: {admin.FirstName}, Last Name: {admin.LastName}");
 
-            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 1);
+            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 15);
             string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, 1 * 24 * 60);
 
-            await redisService.SetRefreshTokenAsync(refreshToken, TimeSpan.FromDays(7));
+            await redisService.SetRefreshTokenAsync(refreshToken, IAdminUserRepository.RefreshTokenTtl);
 
             // ponytail: persist admin session in Redis for auth checks on protected endpoints
-            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, TimeSpan.FromMinutes(1));
+            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, IAdminUserRepository.AccessTokenTtl);
 
             // ponytail: store user permissions in Redis for 7 days (lifetime of session)
             var permissions = new { userCreation = admin.Role == "Admin" };
             var permissionsJson = JsonSerializer.Serialize(permissions);
-            await redisService.SetPermissionsAsync(admin.AdminId, permissionsJson, TimeSpan.FromDays(1));
+            await redisService.SetPermissionsAsync(admin.AdminId, permissionsJson, IAdminUserRepository.RefreshTokenTtl);
 
             context.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
             {
                 HttpOnly = true,
                 SameSite = SameSiteMode.Strict,
                 Secure = false, // set true in production
-                MaxAge = TimeSpan.FromDays(7),
+                MaxAge = IAdminUserRepository.RefreshTokenTtl,
                 Path = "/",
             });
 

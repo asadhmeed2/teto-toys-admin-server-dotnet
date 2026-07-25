@@ -1,5 +1,6 @@
 using MySql.Data.MySqlClient;
 using AdmineTetoToys.Domain.Entities;
+
 using AdmineTetoToys.Domain.Interfaces;
 
 namespace AdmineTetoToys.Infrastructure.Data;
@@ -7,6 +8,9 @@ namespace AdmineTetoToys.Infrastructure.Data;
 public class AdminUserRepository : IAdminUserRepository
 {
     private readonly string _connectionString;
+
+    public static TimeSpan AccessTokenTtl { get; private set; } = TimeSpan.FromMinutes(15); // Access token TTL
+    public static TimeSpan RefreshTokenTtl { get; private set; } = TimeSpan.FromDays(7); // Refresh token TTL
 
     public AdminUserRepository(string connectionString)
     {
