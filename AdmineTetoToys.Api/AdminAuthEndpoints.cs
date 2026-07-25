@@ -35,12 +35,16 @@ public static class AdminAuthEndpoints
             await adminRepo.UpdateLastLoginAsync(admin.AdminId);
 
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
-            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 15);
+
+            Console.WriteLine($"Admin ID: {admin.AdminId}, Role: {admin.Role}, First Name: {admin.FirstName}, Last Name: {admin.LastName}");
+
+            string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, 1);
             string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, 1 * 24 * 60);
+
             await redisService.SetRefreshTokenAsync(refreshToken, TimeSpan.FromDays(7));
 
             // ponytail: persist admin session in Redis for auth checks on protected endpoints
-            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, TimeSpan.FromMinutes(15));
+            await redisService.SetAdminSessionAsync(admin.AdminId, admin.Role, TimeSpan.FromMinutes(1));
 
             // ponytail: store user permissions in Redis for 7 days (lifetime of session)
             var permissions = new { userCreation = admin.Role == "Admin" };
@@ -95,20 +99,32 @@ public static class AdminAuthEndpoints
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
 
+
             var refreshToken = context.Request.Cookies["refresh_token"];
+
+
             if (string.IsNullOrEmpty(refreshToken) || !await redisService.ValidateRefreshTokenAsync(refreshToken))
                 return Results.Json(new { error = "invalid_token", error_description = "Missing or invalid session refresh token." }, statusCode: 401);
 
             var adminId = tokenService.GetAdminIdFromToken(refreshToken);
             var role = tokenService.GetRoleFromToken(refreshToken);
+
+            var adminToken = await redisService.GetAdminSessionAsync(adminId ?? string.Empty);
+
+            Console.WriteLine($"Admin ID from token: {adminId}, Role from token: {role}, Admin session from Redis: {adminToken?.Id}, {adminToken?.Role}");
+
+            if (adminToken == null || adminToken.Role.ToLower() != (role ?? string.Empty).ToLower())
+                return Results.Json(new { error = "invalid_token", error_description = "Session has expired or is invalid." }, statusCode: 401);
+
+
             if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(role))
                 return Results.Json(new { error = "invalid_token", error_description = "Malformed refresh token." }, statusCode: 401);
 
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
-            string newAccessToken = tokenService.GenerateAccessToken(adminId, role, secret, 15);
+            string newAccessToken = tokenService.GenerateAccessToken(adminId, role, secret, 1);
 
             // Keep the admin session alive in Redis for the same duration as the new access token
-            await redisService.SetAdminSessionAsync(adminId, role, TimeSpan.FromMinutes(15));
+            await redisService.SetAdminSessionAsync(adminId, role, TimeSpan.FromMinutes(1));
 
             return Results.Ok(new
             {
@@ -156,7 +172,7 @@ public static class AdminAuthEndpoints
 
             // 1. Validate Access Token (JWT)
             var authHeader = context.Request.Headers.Authorization.ToString();
-            
+
             var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
             var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
             if (userInfo == null)

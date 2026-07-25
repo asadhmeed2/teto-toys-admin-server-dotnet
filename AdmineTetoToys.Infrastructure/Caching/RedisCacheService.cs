@@ -55,11 +55,11 @@ public class RedisCacheService : IRedisCacheService
         await db.StringSetAsync($"admin_session:{email}", role, ttl);
     }
 
-    public async Task<AdmineTetoToys.Domain.Entities.AdminSession?> GetAdminSessionAsync(string email)
+    public async Task<AdmineTetoToys.Domain.Entities.AdminSession?> GetAdminSessionAsync(string Id)
     {
         var db = _multiplexer.GetDatabase();
-        var role = await db.StringGetAsync($"admin_session:{email}");
-        return role.HasValue ? new AdmineTetoToys.Domain.Entities.AdminSession(email, role.ToString()) : null;
+        var role = await db.StringGetAsync($"admin_session:{Id}");
+        return role.HasValue ? new AdmineTetoToys.Domain.Entities.AdminSession(Id, role.ToString()) : null;
     }
 
     public async Task InvalidateAdminSessionAsync(string Id)
