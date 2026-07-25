@@ -99,7 +99,10 @@ public class JwtTokenService : ITokenService
         {
             var handler = new JwtSecurityTokenHandler();
             var jwt = handler.ReadJwtToken(token);
-            return jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+            // ReadJwtToken does not apply inbound claim mapping, so the role
+            // claim comes back under its raw JWT name ("role"), not the long
+            // ClaimTypes.Role URI. Match both to be safe.
+            return jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role")?.Value;
         }
         catch
         {
