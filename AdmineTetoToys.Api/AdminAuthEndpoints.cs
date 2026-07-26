@@ -117,7 +117,7 @@ public static class AdminAuthEndpoints
 
             Console.WriteLine($"Admin ID from token: {adminId}, Role from token: {role}, Admin session from Redis: {adminIdFromRedis}, {adminRoleFromRedis}");
 
-            if (adminToken == null || adminRoleFromRedis?.ToLower() != (role ?? string.Empty).ToLower())
+            if (adminToken == null || !(adminRoleFromRedis?.ToLower() ?? string.Empty).Equals(role ?? string.Empty, StringComparison.CurrentCultureIgnoreCase))
                 return Results.Json(new { error = "invalid_token", error_description = "Session has expired or is invalid." }, statusCode: 401);
 
 
