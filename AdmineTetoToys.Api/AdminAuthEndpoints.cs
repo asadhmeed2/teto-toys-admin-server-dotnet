@@ -106,20 +106,11 @@ public static class AdminAuthEndpoints
             if (string.IsNullOrEmpty(refreshToken) || !await redisService.ValidateRefreshTokenAsync(refreshToken))
                 return Results.Json(new { error = "invalid_token", error_description = "Missing or invalid session refresh token." }, statusCode: 401);
 
+            // The Redis check above is the revocation check: the key IS the token itself,
+            // so its presence proves this server issued it and it hasn't been logged out.
+            // The identity/role then come from the token's own claims — no second lookup needed.
             var adminId = tokenService.GetAdminIdFromToken(refreshToken);
             var role = tokenService.GetRoleFromToken(refreshToken);
-
-            var adminToken = await redisService.GetRefreshTokenAsync(adminId ?? string.Empty);
-
-
-            var adminIdFromRedis = adminToken?.Id;
-            var adminRoleFromRedis = tokenService.GetRoleFromToken(adminToken?.RefreshToken ?? string.Empty);
-
-            Console.WriteLine($"Admin ID from token: {adminId}, Role from token: {role}, Admin session from Redis: {adminIdFromRedis}, {adminRoleFromRedis}");
-
-            if (adminToken == null || !(adminRoleFromRedis?.ToLower() ?? string.Empty).Equals(role ?? string.Empty, StringComparison.CurrentCultureIgnoreCase))
-                return Results.Json(new { error = "invalid_token", error_description = "Session has expired or is invalid." }, statusCode: 401);
-
 
             if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(role))
                 return Results.Json(new { error = "invalid_token", error_description = "Malformed refresh token." }, statusCode: 401);
