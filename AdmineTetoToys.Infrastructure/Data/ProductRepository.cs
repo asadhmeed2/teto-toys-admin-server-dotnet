@@ -201,7 +201,7 @@ public class ProductRepository : IProductRepository
         return (items, totalCount);
     }
 
-    public async Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search, string language = "en")
+    public async Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search, string language = "en", bool excludeDeleted = false)
     {
         var items = new List<Product>();
         int totalCount = 0;
@@ -216,6 +216,10 @@ public class ProductRepository : IProductRepository
             LEFT JOIN product_translations req ON req.product_id = p.product_id AND req.language_code = @language
             LEFT JOIN product_translations fb ON fb.product_id = p.product_id AND fb.language_code = 'en'
             WHERE 1=1";
+        if (excludeDeleted)
+        {
+            countSql += " AND p.is_deleted = 0";
+        }
         if (!string.IsNullOrEmpty(search))
         {
             countSql += " AND (COALESCE(req.title, fb.title) LIKE @search OR COALESCE(req.description, fb.description) LIKE @search)";
@@ -243,6 +247,10 @@ public class ProductRepository : IProductRepository
             LEFT JOIN product_translations req ON req.product_id = p.product_id AND req.language_code = @language
             LEFT JOIN product_translations fb ON fb.product_id = p.product_id AND fb.language_code = 'en'
             WHERE 1=1";
+        if (excludeDeleted)
+        {
+            itemsSql += " AND p.is_deleted = 0";
+        }
         if (!string.IsNullOrEmpty(search))
         {
             itemsSql += " AND (COALESCE(req.title, fb.title) LIKE @search OR COALESCE(req.description, fb.description) LIKE @search)";

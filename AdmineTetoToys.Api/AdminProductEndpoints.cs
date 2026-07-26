@@ -149,8 +149,8 @@ public static class AdminProductEndpoints
             }, statusCode: 201);
         });
 
-        // GET /api/admin/products — Get products paginated
-        productsGroup.MapGet("/", async (HttpContext context, int? page, int? pageSize, string? search, string? language) =>
+        // GET /api/admin/products — Get products paginated. Pass excludeDeleted=true to hide soft-deleted products.
+        productsGroup.MapGet("/", async (HttpContext context, int? page, int? pageSize, string? search, string? language, bool? excludeDeleted) =>
         {
             var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
             if (!authCheck.Authorized) return authCheck.ErrorResult!;
@@ -162,7 +162,7 @@ public static class AdminProductEndpoints
             string languageVal = string.IsNullOrEmpty(language) ? "en" : language;
 
             var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
-            var (items, totalCount) = await productRepo.GetProductsPaginatedAsync(pageVal, pageSizeVal, search, languageVal);
+            var (items, totalCount) = await productRepo.GetProductsPaginatedAsync(pageVal, pageSizeVal, search, languageVal, excludeDeleted ?? false);
 
             var totalPages = (int)Math.Ceiling((double)totalCount / pageSizeVal);
 

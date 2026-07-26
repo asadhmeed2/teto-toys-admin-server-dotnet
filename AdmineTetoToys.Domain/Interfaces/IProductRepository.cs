@@ -14,7 +14,7 @@ public interface IProductRepository
     Task CreatePartAsync(Part part, string language = "en");
     Task<bool> PartExistsAsync(string partId);
     Task<(List<Part> Items, int TotalCount)> GetPartsPaginatedAsync(int page, int pageSize, string? search, string language = "en");
-    Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search, string language = "en");
+    Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search, string language = "en", bool excludeDeleted = false);
 
     Task CreateCategoryAsync(Category category, string language = "en");
     Task DeleteCategoryAsync(int categoryId);
