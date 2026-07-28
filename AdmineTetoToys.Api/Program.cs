@@ -42,5 +42,6 @@ app.MapAdminUserEndpoints();
 app.MapAdminProductEndpoints();
 app.MapAdminCategoryEndpoints();
 app.MapAdminLanguageEndpoints();
+app.MapAdminStoreHoursEndpoints();
 
 app.Run();

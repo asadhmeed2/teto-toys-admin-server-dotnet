@@ -19,4 +19,10 @@ public interface IRedisCacheService
     Task SetPermissionsAsync(string adminId, string permissionsJson, TimeSpan ttl);
     Task<string?> GetPermissionsAsync(string adminId);
     Task InvalidatePermissionsAsync(string adminId);
+
+    /// <summary>
+    /// Drops the shared store-hours cache the public storefront APIs read, so an
+    /// admin edit shows up immediately instead of waiting out the 1h TTL.
+    /// </summary>
+    Task InvalidateStoreHoursAsync();
 }

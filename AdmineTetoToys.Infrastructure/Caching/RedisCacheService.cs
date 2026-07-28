@@ -93,4 +93,13 @@ public class RedisCacheService : IRedisCacheService
         var db = _multiplexer.GetDatabase();
         await db.KeyDeleteAsync($"permissions:{Id}");
     }
+
+    // Must stay in sync with the key the storefront APIs (TatoToys.Api, node, flask) read.
+    public const string StoreHoursCacheKey = "store_hours:all";
+
+    public async Task InvalidateStoreHoursAsync()
+    {
+        var db = _multiplexer.GetDatabase();
+        await db.KeyDeleteAsync(StoreHoursCacheKey);
+    }
 }

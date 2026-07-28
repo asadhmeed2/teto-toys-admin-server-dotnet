@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository>(_ => new UserRepository(mysqlConnectionString));
         services.AddScoped<IAdminUserRepository>(_ => new AdminUserRepository(mysqlConnectionString));
         services.AddScoped<IProductRepository>(_ => new ProductRepository(mysqlConnectionString));
+        services.AddScoped<IStoreHoursRepository>(_ => new StoreHoursRepository(mysqlConnectionString));
 
         // Security
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
