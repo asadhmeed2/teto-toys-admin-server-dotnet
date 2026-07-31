@@ -17,6 +17,16 @@ public interface IProductRepository
     Task<(List<Product> Items, int TotalCount)> GetProductsPaginatedAsync(int page, int pageSize, string? search, string language = "en", bool excludeDeleted = false);
 
     Task CreateCategoryAsync(Category category, string language = "en");
+
+    /// <summary>
+    /// Upserts the category's name for one language. The slug is deliberately left
+    /// untouched — it is a language-independent URL identifier.
+    /// </summary>
+    Task UpdateCategoryAsync(int categoryId, string name, string language = "en");
+
+    /// <summary>Single category with its name resolved for <paramref name="language"/> (falls back to 'en').</summary>
+    Task<Category?> GetCategoryByIdAsync(int categoryId, string language = "en");
+
     Task DeleteCategoryAsync(int categoryId);
     Task<bool> CategoryExistsAsync(int categoryId);
     Task<bool> CategoryExistsBySlugAsync(string slug);

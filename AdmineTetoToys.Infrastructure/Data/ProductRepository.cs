@@ -333,6 +333,60 @@ public class ProductRepository : IProductRepository
         }
     }
 
+    public async Task UpdateCategoryAsync(int categoryId, string name, string language = "en")
+    {
+        // Upsert, not UPDATE: a category has no translation row for a language until
+        // someone first supplies one, so editing in a new language must insert.
+        // The slug is intentionally not touched — it is a stable, language-independent
+        // identifier (and deriving it from a non-Latin name would produce nonsense).
+        const string sql = @"
+            INSERT INTO category_translations (category_id, language_code, name)
+            VALUES (@categoryId, @language, @name)
+            ON DUPLICATE KEY UPDATE name = VALUES(name)";
+
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@categoryId", categoryId);
+        cmd.Parameters.AddWithValue("@language", language);
+        cmd.Parameters.AddWithValue("@name", name);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<Category?> GetCategoryByIdAsync(int categoryId, string language = "en")
+    {
+        // Same double-join/COALESCE shape the product and category list queries use:
+        // requested language first, English as fallback.
+        const string sql = @"
+            SELECT c.id,
+                   COALESCE(req.name, fb.name) AS name,
+                   c.slug,
+                   c.number_of_active_products
+            FROM categories c
+            LEFT JOIN category_translations req ON req.category_id = c.id AND req.language_code = @language
+            LEFT JOIN category_translations fb  ON fb.category_id  = c.id AND fb.language_code  = 'en'
+            WHERE c.id = @categoryId";
+
+        await using var conn = new MySqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@categoryId", categoryId);
+        cmd.Parameters.AddWithValue("@language", language);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return null;
+
+        var nameOrdinal = reader.GetOrdinal("name");
+        return new Category
+        {
+            Id = reader.GetInt32(reader.GetOrdinal("id")),
+            // Null when the category has no translation in any language.
+            Name = reader.IsDBNull(nameOrdinal) ? string.Empty : reader.GetString(nameOrdinal),
+            Slug = reader.GetString(reader.GetOrdinal("slug")),
+            NumberOfActiveProducts = reader.GetInt32(reader.GetOrdinal("number_of_active_products")),
+        };
+    }
+
     public async Task DeleteCategoryAsync(int categoryId)
     {
         await using var conn = new MySqlConnection(_connectionString);

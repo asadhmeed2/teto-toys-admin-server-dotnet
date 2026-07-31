@@ -48,9 +48,71 @@ public static class AdminCategoryEndpoints
 
             return Results.Json(new
             {
+                // CreateCategoryAsync backfills the generated id — return it so callers
+                // can immediately edit or link to the new category.
+                id = category.Id,
                 name = category.Name,
-                slug = category.Slug
+                slug = category.Slug,
+                language = categoryLanguage
             }, statusCode: 201);
+        });
+
+        // GET /api/admin/categories/{categoryId} — single category, name resolved for
+        // ?language= (falls back to 'en'). Used to populate the edit form and to reload
+        // it when the admin switches language, mirroring the product edit flow.
+        categoriesGroup.MapGet("/{categoryId:int}", async (int categoryId, HttpContext context, string? language) =>
+        {
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            if (!authCheck.Authorized) return authCheck.ErrorResult!;
+
+            string languageVal = string.IsNullOrEmpty(language) ? "en" : language;
+
+            var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
+            var category = await productRepo.GetCategoryByIdAsync(categoryId, languageVal);
+
+            if (category == null)
+                return Results.NotFound(new { error = "not_found", error_description = $"Category {categoryId} not found." });
+
+            return Results.Ok(new
+            {
+                id = category.Id,
+                name = category.Name,
+                slug = category.Slug,
+                number_of_active_products = category.NumberOfActiveProducts,
+                language = languageVal
+            });
+        });
+
+        // PUT /api/admin/categories/{categoryId} — edit the name for one language.
+        categoriesGroup.MapPut("/{categoryId:int}", async (int categoryId, UpdateCategoryRequest request, HttpContext context) =>
+        {
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            if (!authCheck.Authorized) return authCheck.ErrorResult!;
+
+            if (request == null || string.IsNullOrWhiteSpace(request.Name))
+                return Results.Json(new { error = "invalid_request", error_description = "Category name is required." }, statusCode: 400);
+
+            var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();
+
+            if (!await productRepo.CategoryExistsAsync(categoryId))
+                return Results.NotFound(new { error = "not_found", error_description = $"Category {categoryId} not found." });
+
+            string categoryLanguage = string.IsNullOrEmpty(request.Language) ? "en" : request.Language;
+
+            // Only the translation row changes; the slug stays put so existing links
+            // and the 'general' guard keep working after a rename.
+            await productRepo.UpdateCategoryAsync(categoryId, request.Name.Trim(), categoryLanguage);
+
+            var updated = await productRepo.GetCategoryByIdAsync(categoryId, categoryLanguage);
+
+            return Results.Ok(new
+            {
+                id = categoryId,
+                name = updated?.Name ?? request.Name.Trim(),
+                slug = updated?.Slug,
+                number_of_active_products = updated?.NumberOfActiveProducts ?? 0,
+                language = categoryLanguage
+            });
         });
 
         // DELETE /api/admin/categories/{categoryId}
