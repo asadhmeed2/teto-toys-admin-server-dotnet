@@ -135,7 +135,8 @@ public class AdminUserRepository : IAdminUserRepository
 
                 items.Add(new AdminUserListItem
                 {
-                    AdminId = reader.GetString(reader.GetOrdinal("admin_id")),
+                    // CHAR(36) comes back as Guid from this provider, not string.
+                    AdminId = reader.GetIdString("admin_id"),
                     Email = reader.GetString(reader.GetOrdinal("email")),
                     FirstName = reader.GetString(reader.GetOrdinal("first_name")),
                     LastName = reader.GetString(reader.GetOrdinal("last_name")),

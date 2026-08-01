@@ -135,7 +135,8 @@ public class UserRepository : IUserRepository
 
                 items.Add(new CustomerListItem
                 {
-                    UserId = reader.GetString(reader.GetOrdinal("user_id")),
+                    // CHAR(36) may come back as Guid from this provider, not string.
+                    UserId = reader.GetIdString("user_id"),
                     Email = reader.GetString(reader.GetOrdinal("email")),
                     FirstName = reader.GetString(reader.GetOrdinal("first_name")),
                     LastName = reader.GetString(reader.GetOrdinal("last_name")),
