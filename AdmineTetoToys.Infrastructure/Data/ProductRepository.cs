@@ -13,6 +13,16 @@ public class ProductRepository : IProductRepository
         _connectionString = connectionString;
     }
 
+    /// <summary>
+    /// Every create path also seeds an 'en' translation when the author wrote in another
+    /// language, so a row is never left without the fallback every read query expects.
+    /// Seeded rows hold the original text until translated — which is what the read-side
+    /// fallback would have surfaced anyway, but now without a per-row lookup.
+    /// Always paired with INSERT IGNORE so a genuine 'en' row is never overwritten.
+    /// </summary>
+    private static bool IsEnglish(string? language) =>
+        string.IsNullOrEmpty(language) || string.Equals(language, "en", StringComparison.OrdinalIgnoreCase);
+
     public async Task CreateProductWithPartsAsync(Product product, List<string> partIds, string language = "en")
     {
         await using var conn = new MySqlConnection(_connectionString);
@@ -47,6 +57,21 @@ public class ProductRepository : IProductRepository
             translationCmd.Parameters.AddWithValue("@subtitle", (object?)product.Subtitle ?? DBNull.Value);
             translationCmd.Parameters.AddWithValue("@description", (object?)product.Description ?? DBNull.Value);
             await translationCmd.ExecuteNonQueryAsync();
+
+            // 1c. Guarantee an 'en' row exists (see EnsureEnglishFallback).
+            if (!IsEnglish(language))
+            {
+                const string insertEnFallbackSql = @"
+                    INSERT IGNORE INTO product_translations (product_id, language_code, title, subtitle, description)
+                    VALUES (@productId, 'en', @title, @subtitle, @description)";
+
+                await using var enCmd = new MySqlCommand(insertEnFallbackSql, conn, transaction);
+                enCmd.Parameters.AddWithValue("@productId", product.ProductId);
+                enCmd.Parameters.AddWithValue("@title", product.Title);
+                enCmd.Parameters.AddWithValue("@subtitle", (object?)product.Subtitle ?? DBNull.Value);
+                enCmd.Parameters.AddWithValue("@description", (object?)product.Description ?? DBNull.Value);
+                await enCmd.ExecuteNonQueryAsync();
+            }
 
             // 2. Insert relationships in product_parts
             if (partIds != null && partIds.Count > 0)
@@ -104,6 +129,19 @@ public class ProductRepository : IProductRepository
                 cmd.Parameters.AddWithValue("@title", part.Title);
                 cmd.Parameters.AddWithValue("@description", (object?)part.Description ?? DBNull.Value);
                 await cmd.ExecuteNonQueryAsync();
+            }
+
+            if (!IsEnglish(language))
+            {
+                const string insertEnFallbackSql = @"
+                    INSERT IGNORE INTO part_translations (part_id, language_code, title, description)
+                    VALUES (@partId, 'en', @title, @description)";
+
+                await using var enCmd = new MySqlCommand(insertEnFallbackSql, conn, transaction);
+                enCmd.Parameters.AddWithValue("@partId", part.PartId);
+                enCmd.Parameters.AddWithValue("@title", part.Title);
+                enCmd.Parameters.AddWithValue("@description", (object?)part.Description ?? DBNull.Value);
+                await enCmd.ExecuteNonQueryAsync();
             }
 
             await transaction.CommitAsync();
@@ -327,6 +365,18 @@ public class ProductRepository : IProductRepository
                 cmd.Parameters.AddWithValue("@language", language);
                 cmd.Parameters.AddWithValue("@name", category.Name);
                 await cmd.ExecuteNonQueryAsync();
+            }
+
+            if (!IsEnglish(language))
+            {
+                const string insertEnFallbackSql = @"
+                    INSERT IGNORE INTO category_translations (category_id, language_code, name)
+                    VALUES (@categoryId, 'en', @name)";
+
+                await using var enCmd = new MySqlCommand(insertEnFallbackSql, conn, transaction);
+                enCmd.Parameters.AddWithValue("@categoryId", categoryId);
+                enCmd.Parameters.AddWithValue("@name", category.Name);
+                await enCmd.ExecuteNonQueryAsync();
             }
 
             category.Id = categoryId;
@@ -589,6 +639,18 @@ public class ProductRepository : IProductRepository
                 cmd.Parameters.AddWithValue("@language", language);
                 cmd.Parameters.AddWithValue("@name", subcategory.Name);
                 await cmd.ExecuteNonQueryAsync();
+            }
+
+            if (!IsEnglish(language))
+            {
+                const string insertEnFallbackSql = @"
+                    INSERT IGNORE INTO subcategory_translations (subcategory_id, language_code, name)
+                    VALUES (@subcategoryId, 'en', @name)";
+
+                await using var enCmd = new MySqlCommand(insertEnFallbackSql, conn, transaction);
+                enCmd.Parameters.AddWithValue("@subcategoryId", subcategoryId);
+                enCmd.Parameters.AddWithValue("@name", subcategory.Name);
+                await enCmd.ExecuteNonQueryAsync();
             }
 
             subcategory.Id = subcategoryId;
