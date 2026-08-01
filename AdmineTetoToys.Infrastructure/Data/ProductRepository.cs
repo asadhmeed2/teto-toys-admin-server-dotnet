@@ -159,7 +159,9 @@ public class ProductRepository : IProductRepository
         // 2. Get paginated items (double LEFT JOIN part_translations resolves requested-language text with an 'en' fallback)
         var itemsSql = @"
             SELECT pa.part_id,
-                   COALESCE(req.title, fb.title) AS title,
+                   COALESCE(req.title, fb.title,
+                            (SELECT prt.title FROM part_translations prt
+                             WHERE prt.part_id = pa.part_id ORDER BY prt.language_code LIMIT 1)) AS title,
                    COALESCE(req.description, fb.description) AS description,
                    pa.price, pa.image_urls
             FROM parts pa
@@ -187,7 +189,8 @@ public class ProductRepository : IProductRepository
                 var part = new Part
                 {
                     PartId = reader.GetGuid(reader.GetOrdinal("part_id")).ToString(),
-                    Title = reader.GetString(reader.GetOrdinal("title")),
+                    // Guarded: NULL when the row has no translation in any language.
+                    Title = reader.IsDBNull(reader.GetOrdinal("title")) ? string.Empty : reader.GetString(reader.GetOrdinal("title")),
                     Description = reader.IsDBNull(reader.GetOrdinal("description")) ? null : reader.GetString(reader.GetOrdinal("description")),
                     Price = reader.GetDecimal(reader.GetOrdinal("price")),
                     ImageUrls = reader.IsDBNull(reader.GetOrdinal("image_urls"))
@@ -239,7 +242,9 @@ public class ProductRepository : IProductRepository
         // Double LEFT JOIN product_translations resolves requested-language text with an 'en' fallback.
         var itemsSql = @"
             SELECT p.product_id,
-                   COALESCE(req.title, fb.title) AS title,
+                   COALESCE(req.title, fb.title,
+                            (SELECT pt.title FROM product_translations pt
+                             WHERE pt.product_id = p.product_id ORDER BY pt.language_code LIMIT 1)) AS title,
                    COALESCE(req.subtitle, fb.subtitle) AS subtitle,
                    COALESCE(req.description, fb.description) AS description,
                    p.category, p.subcategory, p.price, p.image_urls, p.is_displayed, p.is_deleted
@@ -273,7 +278,8 @@ public class ProductRepository : IProductRepository
                 var product = new Product
                 {
                     ProductId = reader.GetGuid(reader.GetOrdinal("product_id")).ToString(),
-                    Title = reader.GetString(reader.GetOrdinal("title")),
+                    // Guarded: NULL when the row has no translation in any language.
+                    Title = reader.IsDBNull(reader.GetOrdinal("title")) ? string.Empty : reader.GetString(reader.GetOrdinal("title")),
                     Subtitle = reader.IsDBNull(reader.GetOrdinal("subtitle")) ? null : reader.GetString(reader.GetOrdinal("subtitle")),
                     Description = reader.IsDBNull(reader.GetOrdinal("description")) ? null : reader.GetString(reader.GetOrdinal("description")),
                     Category = reader.GetInt32(reader.GetOrdinal("category")),
@@ -359,7 +365,9 @@ public class ProductRepository : IProductRepository
         // requested language first, English as fallback.
         const string sql = @"
             SELECT c.id,
-                   COALESCE(req.name, fb.name) AS name,
+                   COALESCE(req.name, fb.name,
+                            (SELECT ct.name FROM category_translations ct
+                             WHERE ct.category_id = c.id ORDER BY ct.language_code LIMIT 1)) AS name,
                    c.slug,
                    c.number_of_active_products
             FROM categories c
@@ -505,8 +513,15 @@ public class ProductRepository : IProductRepository
             totalCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
         }
 
+        // Third fallback (any translation) matters because a category may be created in
+        // a single non-English language, leaving no 'en' row — without it the name comes
+        // back NULL and the row is unreadable.
         var itemsSql = @"
-            SELECT c.id, COALESCE(req.name, fb.name) AS name, c.slug, c.number_of_active_products
+            SELECT c.id,
+                   COALESCE(req.name, fb.name,
+                            (SELECT ct.name FROM category_translations ct
+                             WHERE ct.category_id = c.id ORDER BY ct.language_code LIMIT 1)) AS name,
+                   c.slug, c.number_of_active_products
             FROM categories c
             LEFT JOIN category_translations req ON req.category_id = c.id AND req.language_code = @language
             LEFT JOIN category_translations fb ON fb.category_id = c.id AND fb.language_code = 'en'";
@@ -529,10 +544,13 @@ public class ProductRepository : IProductRepository
             await using var reader = await itemsCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
+                var nameOrdinal = reader.GetOrdinal("name");
                 items.Add(new Category
                 {
                     Id = reader.GetInt32(reader.GetOrdinal("id")),
-                    Name = reader.GetString(reader.GetOrdinal("name")),
+                    // Still guard: a row with no translation rows at all yields NULL,
+                    // and GetString on NULL throws rather than returning null.
+                    Name = reader.IsDBNull(nameOrdinal) ? string.Empty : reader.GetString(nameOrdinal),
                     Slug = reader.GetString(reader.GetOrdinal("slug")),
                     NumberOfActiveProducts = reader.GetInt32(reader.GetOrdinal("number_of_active_products"))
                 });
@@ -630,7 +648,10 @@ public class ProductRepository : IProductRepository
         }
 
         var itemsSql = @"
-            SELECT s.id, s.category_id, COALESCE(req.name, fb.name) AS name
+            SELECT s.id, s.category_id,
+                   COALESCE(req.name, fb.name,
+                            (SELECT st.name FROM subcategory_translations st
+                             WHERE st.subcategory_id = s.id ORDER BY st.language_code LIMIT 1)) AS name
             FROM subcategories s
             LEFT JOIN subcategory_translations req ON req.subcategory_id = s.id AND req.language_code = @language
             LEFT JOIN subcategory_translations fb ON fb.subcategory_id = s.id AND fb.language_code = 'en'";
@@ -653,11 +674,12 @@ public class ProductRepository : IProductRepository
             await using var reader = await itemsCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
+                var subNameOrdinal = reader.GetOrdinal("name");
                 items.Add(new Subcategory
                 {
                     Id = reader.GetInt32(reader.GetOrdinal("id")),
                     CategoryId = reader.GetInt32(reader.GetOrdinal("category_id")),
-                    Name = reader.GetString(reader.GetOrdinal("name"))
+                    Name = reader.IsDBNull(subNameOrdinal) ? string.Empty : reader.GetString(subNameOrdinal)
                 });
             }
         }
@@ -669,7 +691,9 @@ public class ProductRepository : IProductRepository
     {
         const string sql = @"
             SELECT p.product_id,
-                   COALESCE(req.title, fb.title) AS title,
+                   COALESCE(req.title, fb.title,
+                            (SELECT pt.title FROM product_translations pt
+                             WHERE pt.product_id = p.product_id ORDER BY pt.language_code LIMIT 1)) AS title,
                    COALESCE(req.subtitle, fb.subtitle) AS subtitle,
                    COALESCE(req.description, fb.description) AS description,
                    p.category, p.subcategory, p.price, p.image_urls, p.is_displayed
@@ -691,7 +715,8 @@ public class ProductRepository : IProductRepository
         return new Product
         {
             ProductId = reader.GetGuid(reader.GetOrdinal("product_id")).ToString(),
-            Title = reader.GetString(reader.GetOrdinal("title")),
+            // Guarded: NULL when the row has no translation in any language.
+            Title = reader.IsDBNull(reader.GetOrdinal("title")) ? string.Empty : reader.GetString(reader.GetOrdinal("title")),
             Subtitle = reader.IsDBNull(reader.GetOrdinal("subtitle")) ? null : reader.GetString(reader.GetOrdinal("subtitle")),
             Description = reader.IsDBNull(reader.GetOrdinal("description")) ? null : reader.GetString(reader.GetOrdinal("description")),
             Category = reader.GetInt32(reader.GetOrdinal("category")),
