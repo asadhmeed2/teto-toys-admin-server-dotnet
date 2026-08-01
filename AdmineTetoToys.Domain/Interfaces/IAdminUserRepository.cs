@@ -9,4 +9,8 @@ public interface IAdminUserRepository
     Task UpdateLastLoginAsync(string adminId);
     Task CreateAsync(AdminUser user);
 
+    /// <summary>Paginated admin users for the admin-only list page. Never returns password hashes.</summary>
+    Task<(List<AdminUserListItem> Items, int TotalCount)> GetAdminUsersPaginatedAsync(
+        int page, int pageSize, string? search);
+
 }
