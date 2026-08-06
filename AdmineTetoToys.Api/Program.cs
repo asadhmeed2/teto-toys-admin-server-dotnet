@@ -35,6 +35,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 var app = builder.Build();
 
 app.UseCors("AllowAdminUI");
+
+// Before auth and endpoints: rejected traffic should cost as little as possible.
+// Must follow UseCors so 429 responses still carry CORS headers and the browser
+// can read them instead of reporting an opaque network error.
+app.UseRedisRateLimiting();
 app.UseHttpsRedirection();
 
 app.MapAdminAuthEndpoints();
