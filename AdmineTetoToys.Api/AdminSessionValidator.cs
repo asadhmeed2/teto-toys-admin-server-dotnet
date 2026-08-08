@@ -20,7 +20,13 @@ public static class AdminSessionValidator
         if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             return (false, null, Results.Json(new { error = "unauthorized", error_description = "Missing or invalid Authorization header." }, statusCode: 401));
 
-        var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
+        var secret = config["JWT:SECRET"];
+        if (string.IsNullOrEmpty(secret))
+        {
+            System.Console.WriteLine("JWT:SECRET is not configured. Please set it in appsettings.json or environment variables.");
+            return (false, null, Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500));
+        }
+
         var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
         if (userInfo == null)
             return (false, null, Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401));

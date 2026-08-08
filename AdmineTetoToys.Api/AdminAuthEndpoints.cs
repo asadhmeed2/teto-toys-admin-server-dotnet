@@ -33,7 +33,14 @@ public static class AdminAuthEndpoints
 
             await adminRepo.UpdateLastLoginAsync(admin.AdminId);
 
-            var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
+            var secret = config["JWT:SECRET"];
+
+            if (string.IsNullOrEmpty(secret))
+            {
+                System.Console.WriteLine("JWT:SECRET is not configured. Please set it in appsettings.json or environment variables.");
+                return Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500);
+            }
+
 
             Console.WriteLine($"Admin ID: {admin.AdminId}, Role: {admin.Role}, First Name: {admin.FirstName}, Last Name: {admin.LastName}");
 
@@ -143,9 +150,18 @@ public static class AdminAuthEndpoints
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
             var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
-            var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
+            var secret = config["JWT:SECRET"];
+
+            if (string.IsNullOrEmpty(secret))
+            {
+                System.Console.WriteLine("JWT:SECRET is not configured. Please set it in appsettings.json or environment variables.");
+                return Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500);
+            }
+
 
             var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
+
+
             if (userInfo == null)
                 return Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401);
 
@@ -172,7 +188,14 @@ public static class AdminAuthEndpoints
             // 1. Validate Access Token (JWT)
             var authHeader = context.Request.Headers.Authorization.ToString();
 
-            var secret = config["JWT:SECRET"] ?? "SuperSecretKeyForTetoToysTokenAuth2026";
+            var secret = config["JWT:SECRET"];
+            if (string.IsNullOrEmpty(secret))
+                return Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500); if (string.IsNullOrEmpty(secret))
+            {
+                System.Console.WriteLine("JWT:SECRET is not configured. Please set it in appsettings.json or environment variables.");
+                return Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500);
+            }
+
             var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
             if (userInfo == null)
                 return Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401);
