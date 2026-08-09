@@ -7,6 +7,8 @@ using System.Text.Json;
 
 public static class AdminAuthEndpoints
 {
+    private const string RefreshCookieName = "refresh_token";
+
     public static void MapAdminAuthEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/auth");
@@ -57,14 +59,7 @@ public static class AdminAuthEndpoints
             var permissionsJson = JsonSerializer.Serialize(permissions);
             await redisService.SetPermissionsAsync(admin.AdminId, permissionsJson, jwt.RefreshTokenTtl);
 
-            context.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
-            {
-                HttpOnly = true,
-                SameSite = SameSiteMode.Strict,
-                Secure = false, // set true in production
-                MaxAge = jwt.RefreshTokenTtl,
-                Path = "/",
-            });
+            SetRefreshCookie(context, refreshToken, jwt);
 
             return Results.Ok(new
             {
@@ -224,5 +219,22 @@ public static class AdminAuthEndpoints
 
             return Results.Content(permissionsJson, "application/json");
         });
+
     }
+
+    private static void SetRefreshCookie(HttpContext context, string token, JwtOptions jwt)
+    {
+        var isProduction = !context.RequestServices
+            .GetRequiredService<IWebHostEnvironment>().IsDevelopment();
+
+        context.Response.Cookies.Append(RefreshCookieName, token, new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Strict,
+            Secure = isProduction, // set true in production
+            MaxAge = jwt.RefreshTokenTtl,
+            Path = "/",
+        });
+    }
+
 }

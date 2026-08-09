@@ -13,7 +13,7 @@ public class JwtOptions
     public TimeSpan AccessTokenTtl { get; set; } = TimeSpan.FromMinutes(15);
 
     /// <summary>Lifetime of a refresh token / refresh cookie.</summary>
-    public TimeSpan RefreshTokenTtl { get; set; } = TimeSpan.FromDays(7);
+    public TimeSpan RefreshTokenTtl { get; set; } = TimeSpan.FromDays(1);
 
     // Convenience accessors for APIs that take minutes/seconds.
     public int AccessTokenMinutes => (int)AccessTokenTtl.TotalMinutes;
