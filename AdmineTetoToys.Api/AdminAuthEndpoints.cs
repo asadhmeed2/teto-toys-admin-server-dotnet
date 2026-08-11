@@ -3,6 +3,7 @@ using AdmineTetoToys.Application.DTOs;
 using AdmineTetoToys.Domain.Configuration;
 using AdmineTetoToys.Domain.Interfaces;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 using System.Text.Json;
 
 public static class AdminAuthEndpoints
@@ -26,13 +27,40 @@ public static class AdminAuthEndpoints
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return Results.Json(new { error = "invalid_request", error_description = "Email and password are required." }, statusCode: 400);
 
+            var multiplexer = context.RequestServices.GetService<IConnectionMultiplexer>();
+
+            // Per-account throttle: caps guesses against one email regardless of how
+            // many IPs are used, which the per-IP rate limiter cannot do.
+            var lockoutRemaining = await LoginAttemptLimiter.GetLockoutRemainingAsync(
+                multiplexer, config, "admin", request.Email);
+
+            if (lockoutRemaining > 0)
+            {
+                context.Response.Headers.RetryAfter = lockoutRemaining.ToString();
+                return Results.Json(new
+                {
+                    error = "too_many_attempts",
+                    error_description = $"Too many failed login attempts. Please try again in {lockoutRemaining} seconds.",
+                }, statusCode: 429);
+            }
+
             var admin = await adminRepo.GetByEmailAsync(request.Email);
+
+            // Count unknown/inactive accounts too. Skipping them would make a wrong
+            // email fail differently from a wrong password, which is an enumeration oracle.
             if (admin == null || !admin.IsActive)
+            {
+                await LoginAttemptLimiter.RecordFailureAsync(multiplexer, config, "admin", request.Email);
                 return Results.Json(new { error = "invalid_grant", error_description = "Invalid email or password." }, statusCode: 401);
+            }
 
             if (!hasher.VerifyPassword(request.Password, admin.PasswordHash))
+            {
+                await LoginAttemptLimiter.RecordFailureAsync(multiplexer, config, "admin", request.Email);
                 return Results.Json(new { error = "invalid_grant", error_description = "Invalid email or password." }, statusCode: 401);
+            }
 
+            await LoginAttemptLimiter.ResetAsync(multiplexer, "admin", request.Email);
             await adminRepo.UpdateLastLoginAsync(admin.AdminId);
 
             var secret = config["JWT:SECRET"];

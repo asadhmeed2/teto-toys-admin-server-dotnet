@@ -34,6 +34,16 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
+// First in the pipeline so even short-circuited responses (429s, redirects) carry them.
+app.UseSecurityHeaders();
+
+// HSTS tells browsers to refuse plain HTTP for this host. Production only —
+// on localhost it would pin the dev machine to HTTPS and break local work.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 app.UseCors("AllowAdminUI");
 
 // Before auth and endpoints: rejected traffic should cost as little as possible.

@@ -138,7 +138,10 @@ public static class AdminCategoryEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Json(new { error = "server_error", error_description = "Failed to delete category. All changes were rolled back.", detail = ex.Message }, statusCode: 500);
+                // Log the detail, return a generic body: exception text leaks table
+                // names, SQL fragments and stack context to the caller.
+                Console.Error.WriteLine($"[categories] Delete {categoryId} failed: {ex}");
+                return Results.Json(new { error = "server_error", error_description = "Failed to delete category. All changes were rolled back." }, statusCode: 500);
             }
         });
 
