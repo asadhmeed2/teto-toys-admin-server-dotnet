@@ -132,9 +132,10 @@ public static class AdminCategoryEndpoints
                 await productRepo.DeleteCategoryAsync(categoryId);
                 return Results.NoContent();
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                return Results.Json(new { error = "invalid_request", error_description = ex.Message }, statusCode: 400);
+                // Fixed text: MySql.Data also throws InvalidOperationException, and its message must not reach the client.
+                return Results.Json(new { error = "invalid_request", error_description = "The General category cannot be deleted." }, statusCode: 400);
             }
             catch (Exception ex)
             {

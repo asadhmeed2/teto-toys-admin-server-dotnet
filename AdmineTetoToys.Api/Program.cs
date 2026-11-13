@@ -9,6 +9,13 @@ Env.Load(options: new LoadOptions(setEnvVars: true, clobberExistingVars: false))
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Don't advertise the stack ("Server: Kestrel").
+builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
+
+// Central error handling: unhandled exceptions and empty 4xx bodies (bad JSON, unknown
+// route, wrong method) become RFC 7807 JSON instead of an empty response.
+builder.Services.AddProblemDetails();
+
 // Add services to the container.
 var allowedOrigin = builder.Configuration["CorsOrigin"] ?? "http://localhost:4201";
 
@@ -36,6 +43,8 @@ var app = builder.Build();
 
 // First in the pipeline so even short-circuited responses (429s, redirects) carry them.
 app.UseSecurityHeaders();
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // HSTS tells browsers to refuse plain HTTP for this host. Production only —
 // on localhost it would pin the dev machine to HTTPS and break local work.
