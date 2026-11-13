@@ -15,25 +15,25 @@ public class RedisCacheService : IRedisCacheService
     public async Task SetRefreshTokenAsync(string token, TimeSpan ttl)
     {
         var db = _multiplexer.GetDatabase();
-        await db.StringSetAsync($"refresh:{token}", "1", ttl);
+        await db.StringSetAsync($"admin_refresh:{token}", "1", ttl);
     }
 
     public async Task<bool> ValidateRefreshTokenAsync(string token)
     {
         var db = _multiplexer.GetDatabase();
-        return await db.KeyExistsAsync($"refresh:{token}");
+        return await db.KeyExistsAsync($"admin_refresh:{token}");
     }
 
     public async Task InvalidateRefreshTokenAsync(string token)
     {
         var db = _multiplexer.GetDatabase();
-        await db.KeyDeleteAsync($"refresh:{token}");
+        await db.KeyDeleteAsync($"admin_refresh:{token}");
     }
 
     public async Task<AdmineTetoToys.Domain.Entities.AdminRefreshTokenData?> GetRefreshTokenAsync(string Id)
     {
         var db = _multiplexer.GetDatabase();
-        var value = await db.StringGetAsync($"refresh:{Id}");
+        var value = await db.StringGetAsync($"admin_refresh:{Id}");
         return value.HasValue ? new AdmineTetoToys.Domain.Entities.AdminRefreshTokenData(Id, value.ToString()) : null;
     }
 

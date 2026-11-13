@@ -8,7 +8,8 @@ using System.Text.Json;
 
 public static class AdminAuthEndpoints
 {
-    private const string RefreshCookieName = "refresh_token";
+    // Distinct from the storefront's "refresh_token": cookies ignore ports, so on one host the two would clobber each other.
+    private const string RefreshCookieName = "admin_refresh_token";
 
     public static void MapAdminAuthEndpoints(this IEndpointRouteBuilder app)
     {
@@ -72,8 +73,6 @@ public static class AdminAuthEndpoints
             }
 
 
-            Console.WriteLine($"Admin ID: {admin.AdminId}, Role: {admin.Role}, First Name: {admin.FirstName}, Last Name: {admin.LastName}");
-
             string accessToken = tokenService.GenerateAccessToken(admin.AdminId, admin.Role, secret, jwt.AccessTokenMinutes);
             string refreshToken = tokenService.GenerateRefreshToken(admin.AdminId, admin.Role, admin.FirstName, admin.LastName, secret, jwt.RefreshTokenMinutes);
 
@@ -104,8 +103,10 @@ public static class AdminAuthEndpoints
             var redisService = context.RequestServices.GetRequiredService<IRedisCacheService>();
             var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
 
-            var refreshToken = context.Request.Cookies["refresh_token"];
-            if (!string.IsNullOrEmpty(refreshToken))
+            var refreshToken = context.Request.Cookies[RefreshCookieName];
+            // Only trust the token's admin id if this server issued it (present in Redis);
+            // otherwise a forged unsigned token could log out any admin.
+            if (!string.IsNullOrEmpty(refreshToken) && await redisService.ValidateRefreshTokenAsync(refreshToken))
             {
                 await redisService.InvalidateRefreshTokenAsync(refreshToken);
 
@@ -117,7 +118,7 @@ public static class AdminAuthEndpoints
                     await redisService.InvalidatePermissionsAsync(adminId);
                 }
             }
-            context.Response.Cookies.Delete("refresh_token");
+            context.Response.Cookies.Delete(RefreshCookieName);
             return Results.Ok(new { message = "Logged out successfully." });
         });
 
@@ -130,20 +131,26 @@ public static class AdminAuthEndpoints
             var jwt = context.RequestServices.GetRequiredService<IOptions<JwtOptions>>().Value;
 
 
-            var refreshToken = context.Request.Cookies["refresh_token"];
-
+            var refreshToken = context.Request.Cookies[RefreshCookieName];
 
             if (string.IsNullOrEmpty(refreshToken) || !await redisService.ValidateRefreshTokenAsync(refreshToken))
                 return Results.Json(new { error = "invalid_token", error_description = "Missing or invalid session refresh token." }, statusCode: 401);
 
             // The Redis check above is the revocation check: the key IS the token itself,
             // so its presence proves this server issued it and it hasn't been logged out.
-            // The identity/role then come from the token's own claims — no second lookup needed.
             var adminId = tokenService.GetAdminIdFromToken(refreshToken);
-            var role = tokenService.GetRoleFromToken(refreshToken);
-
-            if (string.IsNullOrEmpty(adminId) || string.IsNullOrEmpty(role))
+            if (string.IsNullOrEmpty(adminId))
                 return Results.Json(new { error = "invalid_token", error_description = "Malformed refresh token." }, statusCode: 401);
+
+            // Role and active flag come from the DB, not the token, so a demoted or
+            // deactivated admin loses access at the next refresh instead of after 7 days.
+            var admin = await context.RequestServices.GetRequiredService<IAdminUserRepository>().GetByIdAsync(adminId);
+            if (admin == null || !admin.IsActive)
+            {
+                await redisService.InvalidateRefreshTokenAsync(refreshToken);
+                return Results.Json(new { error = "invalid_token", error_description = "Account is no longer active." }, statusCode: 401);
+            }
+            var role = admin.Role;
 
             var secret = config["JWT:SECRET"];
             if (string.IsNullOrEmpty(secret))
@@ -189,10 +196,10 @@ public static class AdminAuthEndpoints
                 return Results.Json(new { error = "unauthorized", error_description = "Token is invalid or expired." }, statusCode: 401);
 
             // ponytail: the refresh token carries first/last name — pull it from there for the full profile
-            var refreshToken = context.Request.Cookies["refresh_token"];
+            var refreshToken = context.Request.Cookies[RefreshCookieName];
             if (!string.IsNullOrEmpty(refreshToken) && await redisService.ValidateRefreshTokenAsync(refreshToken))
             {
-                var refreshInfo = tokenService.ValidateAndGetUserInfo(refreshToken, secret);
+                var refreshInfo = tokenService.ValidateAndGetUserInfo(refreshToken, secret, refresh: true);
                 if (refreshInfo != null)
                     return Results.Ok(refreshInfo);
             }
@@ -213,11 +220,10 @@ public static class AdminAuthEndpoints
 
             var secret = config["JWT:SECRET"];
             if (string.IsNullOrEmpty(secret))
-                return Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500); if (string.IsNullOrEmpty(secret))
-            {
-                System.Console.WriteLine("JWT:SECRET is not configured. Please set it in appsettings.json or environment variables.");
                 return Results.Json(new { error = "server_error", error_description = "Server configuration error." }, statusCode: 500);
-            }
+
+            if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                return Results.Json(new { error = "unauthorized", error_description = "Missing or invalid Authorization header." }, statusCode: 401);
 
             var userInfo = tokenService.ValidateAndGetUserInfo(authHeader[7..], secret);
             if (userInfo == null)
@@ -229,7 +235,7 @@ public static class AdminAuthEndpoints
                 return Results.Json(new { error = "unauthorized", error_description = "Could not identify caller." }, statusCode: 401);
 
             // 2. Validate Refresh Token cookie is in Redis
-            var refreshToken = context.Request.Cookies["refresh_token"];
+            var refreshToken = context.Request.Cookies[RefreshCookieName];
             if (string.IsNullOrEmpty(refreshToken) || !await redisService.ValidateRefreshTokenAsync(refreshToken))
                 return Results.Json(new { error = "unauthorized", error_description = "Missing or invalid session refresh token." }, statusCode: 401);
 

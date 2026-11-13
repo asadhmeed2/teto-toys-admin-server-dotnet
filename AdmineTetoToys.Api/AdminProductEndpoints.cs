@@ -303,7 +303,8 @@ public static class AdminProductEndpoints
         // PATCH /api/admin/products/{productId}/restore — Restore a soft-deleted product
         productsGroup.MapPatch("/{productId}/restore", async (string productId, HttpContext context) =>
         {
-            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context);
+            // Admin only, same as delete — a Partner must not undo an Admin's delete.
+            var authCheck = await AdminSessionValidator.ValidateSessionAsync(context, "Admin");
             if (!authCheck.Authorized) return authCheck.ErrorResult!;
 
             var productRepo = context.RequestServices.GetRequiredService<IProductRepository>();

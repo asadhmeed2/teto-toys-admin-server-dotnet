@@ -14,7 +14,7 @@ services:
       Redis__Port: ${Redis__Port:-6379}
       MySQL__Server: shared_mysql
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081" # admin API: loopback only, never public
     restart: unless-stopped
     networks:
       - infrastructure_network

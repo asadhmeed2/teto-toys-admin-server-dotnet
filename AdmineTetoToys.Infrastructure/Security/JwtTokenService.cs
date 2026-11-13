@@ -9,7 +9,8 @@ namespace AdmineTetoToys.Infrastructure.Security;
 public class JwtTokenService : ITokenService
 {
     public const string Issuer = "tatotoys-api";
-    public const string Audience = "tatotoys-frontend";
+    // Distinct from the storefront API so customer tokens are rejected here.
+    public const string Audience = "teto-admin";
 
     public string GenerateAccessToken(string adminId, string secretKey, int expireMinutes)
     {
@@ -110,7 +111,7 @@ public class JwtTokenService : ITokenService
         }
     }
 
-    public object? ValidateAndGetUserInfo(string token, string secretKey)
+    public object? ValidateAndGetUserInfo(string token, string secretKey, bool refresh = false)
     {
         try
         {
@@ -130,6 +131,9 @@ public class JwtTokenService : ITokenService
             }, out var validatedToken);
 
             var jwt = (JwtSecurityToken)validatedToken;
+            // A refresh token must never pass as a Bearer access token (and vice versa).
+            if (jwt.Claims.Any(c => c.Type == "token_type" && c.Value == "refresh") != refresh)
+                return null;
             var adminId = jwt.Claims.First(c => c.Type == JwtRegisteredClaimNames.Sub).Value;
             var role = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value ?? "User";
             var firstName = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.GivenName)?.Value ?? string.Empty;
