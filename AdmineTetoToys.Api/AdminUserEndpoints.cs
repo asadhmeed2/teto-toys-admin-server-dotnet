@@ -27,6 +27,10 @@ public static class AdminUserEndpoints
                 || string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
                 return Results.Json(new { error = "invalid_request", error_description = "All fields are required." }, statusCode: 400);
 
+            // 8 chars minimum; 72-byte max because bcrypt ignores the rest.
+            if (request.Password.Length < 8 || System.Text.Encoding.UTF8.GetByteCount(request.Password) > 72)
+                return Results.Json(new { error = "invalid_request", error_description = "Password must be 8 characters to 72 bytes." }, statusCode: 400);
+
             if (request.Role != "Admin" && request.Role != "Partner")
                 return Results.Json(new { error = "invalid_request", error_description = "Role must be 'Admin' or 'Partner'." }, statusCode: 400);
 

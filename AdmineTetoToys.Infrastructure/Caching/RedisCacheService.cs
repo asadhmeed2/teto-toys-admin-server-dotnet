@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using StackExchange.Redis;
 using AdmineTetoToys.Domain.Interfaces;
 
@@ -5,6 +7,9 @@ namespace AdmineTetoToys.Infrastructure.Caching;
 
 public class RedisCacheService : IRedisCacheService
 {
+    // Tokens are credentials: store only their SHA-256 so a Redis read/dump yields no usable session.
+    private static string H(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
     private readonly IConnectionMultiplexer _multiplexer;
 
     public RedisCacheService(IConnectionMultiplexer multiplexer)
@@ -15,25 +20,25 @@ public class RedisCacheService : IRedisCacheService
     public async Task SetRefreshTokenAsync(string token, TimeSpan ttl)
     {
         var db = _multiplexer.GetDatabase();
-        await db.StringSetAsync($"admin_refresh:{token}", "1", ttl);
+        await db.StringSetAsync($"admin_refresh:{H(token)}", "1", ttl);
     }
 
     public async Task<bool> ValidateRefreshTokenAsync(string token)
     {
         var db = _multiplexer.GetDatabase();
-        return await db.KeyExistsAsync($"admin_refresh:{token}");
+        return await db.KeyExistsAsync($"admin_refresh:{H(token)}");
     }
 
     public async Task InvalidateRefreshTokenAsync(string token)
     {
         var db = _multiplexer.GetDatabase();
-        await db.KeyDeleteAsync($"admin_refresh:{token}");
+        await db.KeyDeleteAsync($"admin_refresh:{H(token)}");
     }
 
     public async Task<AdmineTetoToys.Domain.Entities.AdminRefreshTokenData?> GetRefreshTokenAsync(string Id)
     {
         var db = _multiplexer.GetDatabase();
-        var value = await db.StringGetAsync($"admin_refresh:{Id}");
+        var value = await db.StringGetAsync($"admin_refresh:{H(Id)}");
         return value.HasValue ? new AdmineTetoToys.Domain.Entities.AdminRefreshTokenData(Id, value.ToString()) : null;
     }
 
